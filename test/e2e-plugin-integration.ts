@@ -6,6 +6,7 @@
  * Run: npx tsx test/e2e-plugin-integration.ts
  */
 import * as plugin from '../src/index.ts';
+import { validateJsonSchemaValue } from '@deepseek-ai/dsh-tools';
 import type { BrowserToolConfig } from '../src/config.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -69,6 +70,12 @@ const r1 = await registered.execute({ code: `
 check('execute returns ExecResult', r1 && typeof r1 === 'object' && 'requestId' in r1, String(r1?.requestId));
 check('no error on plugin e2e open', r1.error === undefined, r1.error ? JSON.stringify(r1.error) : '');
 check('plugin e2e sees page', JSON.parse(r1.value || 'null')?.seen === true, r1.value);
+// Regression guard: the real runtime validates the execute() return against
+// output.schema inside createSuccessResult (ToolRuntime dispatch), which these
+// direct .execute() calls bypass. requestId MUST be declared or every successful
+// call throws ToolOutputError in the live harness.
+const outViolations = validateJsonSchemaValue(registered.output.schema, r1, 'value');
+check('ExecResult satisfies output.schema (dispatch-path)', outViolations.length === 0, JSON.stringify(outViolations));
 
 // 4. model-facing render (the text the model reads)
 const blocks = registered.output.render({ code: '' }, r1);

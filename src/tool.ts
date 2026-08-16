@@ -71,6 +71,11 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
           type: 'object',
           additionalProperties: false,
           properties: {
+            // The kernel stamps every ExecResult with a requestId; it MUST be
+            // declared here, or the dsh-tools runtime's output-schema validation
+            // (createSuccessResult) rejects every successful call with a
+            // ToolOutputError.
+            requestId: { type: 'string' },
             value: { type: 'string' },
             stdout: { type: 'string' },
             error: { type: 'object', additionalProperties: true },
