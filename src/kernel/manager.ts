@@ -9,6 +9,7 @@
  */
 
 import type { Owner } from '../sdk/contracts.ts';
+import type { BrowserHooks } from '../sdk/facade.ts';
 import type { ExecRequest, ExecResult, Kernel, KernelManager } from './types.ts';
 import { KernelImpl } from './kernel.ts';
 import { Sandbox } from './sandbox.ts';
@@ -66,21 +67,55 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
       workspaceDir: cfg.workspaceDir(),
     });
 
-    const browser = createBrowserFactory().create(session);
+    // The browser and sandbox reference each other (sandbox needs the browser
+    // for the vm context; the browser reports handoffs to the sandbox). A
+    // mutable ref resolves the construction cycle; it is set before any model
+    // code can run.
+    let sandboxRef: Sandbox | undefined;
+    const hooks: BrowserHooks = {
+      onHandoff: (reason, instructions) => sandboxRef?.recordHandoff(reason, instructions),
+      owner,
+    };
+    const browser = createBrowserFactory().create(session, hooks);
     const sandbox = new Sandbox(browser);
+    sandboxRef = sandbox;
     const kernel = new KernelImpl(owner, session, sandbox);
 
     cache.set(key, { kernel, lastUsed: Date.now(), pinned: false });
     return kernel;
   }
 
-  async function execute(req: ExecRequest): Promise<ExecResult> {
+  async function execute(
+    req: ExecRequest,
+    opts?: { pinAfterHandoff?: boolean },
+  ): Promise<ExecResult> {
     // Reclaim idle kernels first (mirrors QwenPaw BrowserKernelManager.execute).
     await discardIdle();
     const kernel = await get(req.owner);
-    const entry = cache.get(ownerKey(req.owner));
-    if (entry) entry.lastUsed = Date.now();
-    return kernel.execute(req);
+    const key = ownerKey(req.owner);
+    const entry = cache.get(key);
+    if (entry) {
+      entry.lastUsed = Date.now();
+      // A resumed run implies the human handoff step is complete: release the
+      // pin so the idle TTL applies again (otherwise a handoff'd session is
+      // pinned forever and its browser process leaks).
+      if (entry.pinned) {
+        entry.pinned = false;
+        kernel.unpin();
+      }
+    }
+    const result = await kernel.execute(req);
+    // Re-pin only when the caller opts in (headed deployments, where a human
+    // genuinely takes over the browser); in headless mode handoff is an error
+    // and there is nothing to hold open.
+    if (result.handoff && opts?.pinAfterHandoff) {
+      const e2 = cache.get(key);
+      if (e2) {
+        e2.pinned = true;
+        kernel.pin();
+      }
+    }
+    return result;
   }
 
   async function discardIdle(): Promise<void> {

@@ -11,7 +11,6 @@
  */
 
 import vm from 'node:vm';
-import { setHandoffSink } from './handoff.ts';
 
 /** A pending handoff recorded when the model calls `browser.handoff(...)`. */
 export interface HandoffSignal {
@@ -82,17 +81,16 @@ export class Sandbox {
         sandbox.stdoutBuf += line + '\n';
         if (sandbox.printSink) sandbox.printSink(line);
       },
-      // Internal bridge so a handoff issued by the Browser facade can be observed
-      // by the kernel. The Browser facade calls the module-level notifyHandoff();
-      // we register that sink here so it lands on this sandbox's handoff slot.
-      __recordHandoff: (reason: string, instructions: string): void => {
-        sandbox.handoff = { reason, instructions: instructions ?? '' };
-      },
     });
-    // Register the module-level sink used by BrowserImpl.handoff (notifyHandoff).
-    setHandoffSink((reason, instructions) => {
-      sandbox.handoff = { reason, instructions: instructions ?? '' };
-    });
+  }
+
+  /**
+   * Record a handoff issued by the Browser SDK during the current run. The
+   * kernel wires the Browser instance to this method (per-sandbox), so handoff
+   * signals can never leak across concurrently cached sessions.
+   */
+  recordHandoff(reason: string, instructions: string): void {
+    this.handoff = { reason, instructions: instructions ?? '' };
   }
 
   /** Install an optional per-run stdout sink (used by runInSandbox). */

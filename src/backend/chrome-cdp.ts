@@ -153,17 +153,28 @@ class ChromeSession implements BackendSession {
   }
 
   /**
-   * Disconnect from the user's Chrome.
+   * Tear down this session: close the tabs THIS session created, then disconnect
+   * from the user's Chrome.
    *
-   * IMPORTANT — do NOT close the user's browser, and do NOT close individual
-   * contexts. For a `chromium.connectOverCDP` connection, calling
-   * `browser.close()` only DISCONNECTS the client (tears down the CDP session);
-   * the user's Chrome keeps running with all its windows and tabs intact.
-   * (This is the opposite of the managed Playwright backend, where
-   * `browser.close()` terminates the launched Chromium process.)
+   * Symmetric with the managed Playwright backend (which closes its context and
+   * pages on `close()`), but scoped safely for a shared, user-owned browser:
+   *   - closes only the pages in `pageMap` (created by this session via
+   *     `context.newPage()`), so we do not leak agent tabs into the user's
+   *     browser;
+   *   - does NOT `context.close()` (that would close the user's default context
+   *     and every one of their tabs);
+   *   - does NOT terminate the browser process — for a `connectOverCDP`
+   *     connection `browser.close()` only DISCONNECTS the client; the user's
+   *     Chrome keeps running with all its pre-existing windows/tabs intact.
+   * Each page close is best-effort (a tab may already be gone); failures are
+   * swallowed so teardown never throws.
    */
   async close(): Promise<void> {
-    await this.browser.close();
+    for (const rec of [...this.pageMap.values()]) {
+      await rec.page.close().catch(() => undefined);
+    }
+    this.pageMap.clear();
+    await this.browser.close().catch(() => undefined);
   }
 
   private activeId(): string {

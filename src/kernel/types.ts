@@ -52,7 +52,12 @@ export interface Kernel {
 export interface KernelManager {
   /** Get-or-create the kernel for an owner (spawns backend on first use). */
   get(owner: Owner): Promise<Kernel>;
-  execute(req: ExecRequest): Promise<ExecResult>;
+  /**
+   * Execute one program. A resumed run on a pinned (handoff-pending) kernel
+   * unpins it; if `opts.pinAfterHandoff` is set and this run ends in a handoff,
+   * the kernel is re-pinned against idle reclamation.
+   */
+  execute(req: ExecRequest, opts?: { pinAfterHandoff?: boolean }): Promise<ExecResult>;
   /** Reclaim idle (unpinned) kernels older than idleTtlMs. */
   discardIdle(): Promise<void>;
   pin(owner: Owner): void;

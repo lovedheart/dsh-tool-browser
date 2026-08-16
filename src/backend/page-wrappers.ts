@@ -153,8 +153,19 @@ export class PlaywrightLocator implements BackendLocator {
   }
 
   async selectOption(...values: string[]): Promise<{ evidence: string }> {
-    await (this.loc as Locator).selectOption({ value: values[0] });
-    return { evidence: `selected "${values[0]}"` };
+    if (values.length === 0) {
+      throw new BrowserError({
+        category: 'API_MISUSE',
+        cause: 'api_misuse',
+        reason: 'selectOption requires at least one value.',
+        suggested_action: 'Call selectOption(value) or selectOption(v1, v2, ...) for a multi-select.',
+      });
+    }
+    // Playwright accepts an array of options for multi-select; a single-element
+    // array selects one. (A multi-value call on a non-multiple <select> throws
+    // from Playwright, which is the correct behavior.)
+    await (this.loc as Locator).selectOption(values.map((v) => ({ value: v })));
+    return { evidence: `selected "${values.join('", "')}"` };
   }
 
   async hover(): Promise<{ evidence: string }> {
@@ -286,9 +297,12 @@ export class PlaywrightPage implements BackendPage {
 
   /** Wait for a load state. */
   async waitForLoadState(state: string, timeoutMs?: number): Promise<void> {
-    await this.page.waitForLoadState(state as 'load' | 'domcontentloaded' | 'networkidle', {
-      timeout: timeoutMs,
-    });
+    // Pass the timeout through only when the caller set one, so Playwright's
+    // default (30s) applies otherwise rather than `undefined`.
+    await this.page.waitForLoadState(
+      state as 'load' | 'domcontentloaded' | 'networkidle',
+      timeoutMs !== undefined ? { timeout: timeoutMs } : {},
+    );
   }
 
   /** Perceive: page text (+ optional query match count). */
@@ -311,10 +325,27 @@ export class PlaywrightPage implements BackendPage {
 
   /** Current surface info. */
   async currentSurface(): Promise<CurrentSurface> {
+    // Map document.readyState onto the SDK's load_state vocabulary. This is a
+    // best-effort live probe (evaluate can fail mid-navigation); fall back to
+    // 'load' rather than letting currentSurface() throw.
+    let load_state: CurrentSurface['load_state'] = 'load';
+    try {
+      // The callback runs in the browser context (document exists there), but it
+      // is type-checked against the node lib, so read the global defensively.
+      const readyState = await this.page.evaluate(
+        () => (globalThis as { document?: { readyState: string } }).document?.readyState ?? 'complete',
+      );
+      load_state =
+        readyState === 'complete' ? 'load'
+        : readyState === 'interactive' ? 'domcontentloaded'
+        : 'loading';
+    } catch {
+      // keep the 'load' default
+    }
     return {
       url: this.page.url(),
       title: await this.page.title(),
-      load_state: 'load',
+      load_state,
     };
   }
 
@@ -342,7 +373,17 @@ export class PlaywrightPage implements BackendPage {
       await this.page.keyboard.press(opts.key ?? '');
       return { evidence: `keyboard.press("${opts.key ?? ''}")`, ok: true, kind, verb };
     }
-    return { evidence: `${kind}.${verb} (no-op)`, ok: false, kind, verb };
+    // Unsupported combination (e.g. mouse.press or keyboard.click): surface it
+    // as a governed error instead of a silent no-op, so the model learns the
+    // correct call rather than believing the action happened.
+    throw new BrowserError({
+      category: 'API_MISUSE',
+      cause: 'api_misuse',
+      reason: `Unsupported input combination: ${kind}.${verb}`,
+      suggested_action:
+        'Use page.mouse.click(x, y), page.mouse.wheel(dx, dy), or ' +
+        'page.keyboard.press(key).',
+    });
   }
 
   /** Resolve a locator spec to a backend locator handle. */

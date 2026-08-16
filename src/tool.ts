@@ -106,14 +106,15 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
         const code = String((args as { code?: unknown }).code ?? '');
         if (code.trim().length === 0) throw new Error('code must be a non-empty string');
         const owner = ownerFor(ctx);
-        const result = await manager.execute({
-          requestId: randomUUID(),
-          code,
-          owner,
-        });
+        const result = await manager.execute(
+          { requestId: randomUUID(), code, owner },
+          // Headed deployments only: a handoff means a human takes over the
+          // browser, so hold the kernel against the idle TTL until the model
+          // resumes. (In headless mode handoff raises an error instead.)
+          { pinAfterHandoff: !config.headless },
+        );
         // Forward cooperative cancellation into the kernel on abort.
         if (exec.signal?.aborted) await manager.closeSession(owner);
-        if (result.handoff) manager.pin(owner);
         return result;
       },
       presentCall: (args) => ({

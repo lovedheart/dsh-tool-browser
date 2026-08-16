@@ -10,12 +10,12 @@
  *   browser = await Browser.connect()
  *   page = await browser.open("https://example.com")
  *   obs = await page.snapshot()
- *   await page.get_by_role("button", { name: "Go" }).click()
+ *   await page.getByRole("button", { name: "Go" }).click()
  */
 
 import type {
   Identity,
-  Observation,
+  Owner,
   PageRef,
   SessionStatus,
 } from './contracts.ts';
@@ -43,10 +43,17 @@ export interface Browser {
   closePage(page: PageRef): Promise<void>;
 }
 
+/** Kernel wiring for a Browser instance (not model-visible). */
+export interface BrowserHooks {
+  /** Receive `browser.handoff(...)` calls; wired to the owning sandbox. */
+  onHandoff?: (reason: string, instructions: string) => void;
+  /** The owner this session belongs to (surfaced by sessionStatus()). */
+  owner?: Owner;
+}
+
 /**
- * Factory the sandbox uses to bind a Browser to a live kernel/backend session.
- * Subagent A provides the concrete implementation; the signature is fixed here.
+ * Factory the kernel uses to bind a Browser to a live kernel/backend session.
  */
 export interface BrowserFactory {
-  create(session: import('../backend/ports.ts').BackendSession): Browser;
+  create(session: import('../backend/ports.ts').BackendSession, hooks?: BrowserHooks): Browser;
 }

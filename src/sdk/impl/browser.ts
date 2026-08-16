@@ -3,22 +3,25 @@
  * Ported from QwenPaw's `browser/sdk/facade.py` Browser class.
  */
 
-import type { Identity, PageRef, SessionStatus } from '../contracts.ts';
-import type { Browser, BrowserFactory } from '../facade.ts';
+import type { Identity, Owner, PageRef, SessionStatus } from '../contracts.ts';
+import type { Browser, BrowserFactory, BrowserHooks } from '../facade.ts';
 import type { Page } from '../page.ts';
 import { createPageFactory } from './page.ts';
 import type { BackendSession } from '../../backend/ports.ts';
 import { BrowserError } from '../../governance/errors.ts';
-import { notifyHandoff } from '../../kernel/handoff.ts';
 
 /** Concrete Browser bound to one BackendSession. */
 export class BrowserImpl implements Browser {
   private readonly session: BackendSession;
+  private readonly owner: Owner;
   private readonly pageFactory = createPageFactory();
   private connected = true; // kernel pre-connects the session
+  private onHandoff: ((reason: string, instructions: string) => void) | undefined;
 
-  constructor(session: BackendSession) {
+  constructor(session: BackendSession, hooks?: BrowserHooks) {
     this.session = session;
+    this.owner = hooks?.owner ?? { workspace_id: '', session_id: '' };
+    this.onHandoff = hooks?.onHandoff;
   }
 
   /** Connect as an identity. The session is pre-connected by the kernel. */
@@ -50,21 +53,20 @@ export class BrowserImpl implements Browser {
         suggested_action: 'Switch to a headed browser session by setting headless=false in the tool config.',
       });
     }
-    // Notify the kernel's sandbox so ExecResult.handoff is populated (the facade
-    // return value alone is not interceptable from the kernel). The sandbox injects
-    // a handoff sink reachable through the shared module-level ref below; no-op
-    // outside the sandbox (e.g. unit tests with a fake session).
-    notifyHandoff(reason, instructions ?? '');
+    // Report to the owning sandbox (wired by the kernel) so ExecResult.handoff
+    // is populated. Per-sandbox routing means handoff signals never leak across
+    // concurrently cached sessions. No-op outside the kernel (e.g. unit tests).
+    this.onHandoff?.(reason, instructions ?? '');
     return { status: 'handoff', reason, instructions: instructions ?? '' };
   }
 
   /** Report owner, variant, context, connected state. */
   async sessionStatus(): Promise<SessionStatus> {
     return {
-      owner: { workspace_id: '', session_id: '' },
+      owner: this.owner,
       variant: this.session.variant,
       context: 'auto',
-      connected: true,
+      connected: this.connected,
     };
   }
 
@@ -96,11 +98,11 @@ export class BrowserImpl implements Browser {
   }
 }
 
-/** Factory the sandbox uses to bind a Browser to a live kernel/backend session. */
+/** Factory the kernel uses to bind a Browser to a live kernel/backend session. */
 export function createBrowserFactory(): BrowserFactory {
   return {
-    create(session: BackendSession): Browser {
-      return new BrowserImpl(session);
+    create(session: BackendSession, hooks?: BrowserHooks): Browser {
+      return new BrowserImpl(session, hooks);
     },
   };
 }

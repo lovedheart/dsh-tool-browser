@@ -16,7 +16,8 @@
     }
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "node test/run-e2e.mjs",
+    "test:offline": "E2E_OFFLINE=1 node test/run-e2e.mjs",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
@@ -35,7 +36,6 @@
     "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
     "@types/node": "^22.0.0",
     "tsx": "^4.23.12",
-    "typescript": "^5.6.0",
-    "vitest": "^2.0.0"
+    "typescript": "^5.6.0"
   }
 }

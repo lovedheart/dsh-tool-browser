@@ -85,9 +85,18 @@ Verify:
 
 ```bash
 npx playwright install chromium
-npx tsx test/e2e-minloop.ts   # offline: open→snapshot→act→verify + governed errors
-npx tsx test/e2e-network.ts   # online: open example.com→click link→re-snapshot
+npm test            # all e2e suites in order: minloop, integration, network, cdp
+npm run test:offline  # same, skipping the real-network suite (E2E_OFFLINE=1)
 npx tsc --noEmit
+```
+
+To run a single suite directly:
+
+```bash
+npx tsx test/e2e-minloop.ts             # offline: open→snapshot→act→verify + governed errors
+npx tsx test/e2e-plugin-integration.ts  # plugin apply + tool dispatch-path output-schema guard
+npx tsx test/e2e-network.ts             # online: open example.com→click link→re-snapshot
+npx tsx test/e2e-cdp.ts                 # chrome/CDP backend (launches real Chromium)
 ```
 
 > Use `npx tsx` (not `node --experimental-strip-types`) — the latter can't parse TS

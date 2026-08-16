@@ -61,9 +61,9 @@ export function toBrowserError(err: unknown): BrowserError {
 export function locatorLadderTeaching(): string {
   return [
     'If a locator fails, step DOWN one rung (do not jump):',
-    '  1. semantic  page.get_by_role/label/text            first choice',
-    '  2. css       page.locator(css)                       role missing/unstable',
-    '  3. coordinates use locator.bounding_box() first for an exact viewport rect;',
+    '  1. semantic  page.getByRole / getByLabel / getByText   first choice',
+    '  2. css       page.locator(css)                          role missing/unstable',
+    '  3. coordinates use locator.boundingBox() first for an exact viewport rect;',
     '     use a screenshot to explore only when the element is absent from snapshot()',
     'For captcha/login/2FA or any human-only step: await browser.handoff(reason, instructions) and stop.',
   ].join('\n');
