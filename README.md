@@ -1,0 +1,95 @@
+# dsh-tool-browser
+
+A DeepSeek Harness (DSH) plugin that gives the model a **`browser` tool**: drive a
+live web browser by writing async JavaScript against a stateful **Browser SDK**.
+Pure TypeScript — no Python runtime. Ported from QwenPaw's *Unified Browser SDK*.
+
+## What the model can do
+
+```js
+browser = await Browser.connect()
+page = await browser.open("https://example.com")
+obs = await page.snapshot()                       // perceive
+await page.getByRole("button", { name: "Go" }).click()  // act
+obs = await page.snapshot()                       // verify
+```
+
+Stateful session (variables persist across calls), semantic + CSS locators with
+strict mode, multi-page orchestration, screenshots, and human **handoff** for
+login/captcha/2FA. Full API: `skills/browser/SKILL.md`.
+
+## Backends
+
+- `playwright` (default) — managed Chromium via the `playwright` package.
+- `chrome` — the user's real browser over CDP (`cdpUrl`). *(landed in P5)*
+
+## Install (as a DSH profile plugin)
+
+```bash
+# from this directory, into a DSH profile
+dsh plugin --profile <name> add .
+# or, once published:
+dsh plugin --profile <name> add dsh-tool-browser
+```
+
+First run needs Chromium:
+
+```bash
+npx playwright install chromium
+```
+
+## Configure
+
+The tool is mounted by `cordis.patch.yml` (row id `tool-browser`). Override config
+in your profile's `cordis.patch.yml`:
+
+```yaml
+- replace:
+    - id: tool-browser
+      config:
+        backend: playwright     # or 'chrome'
+        headless: false         # required for handoff()
+        cdpUrl: http://127.0.0.1:9222   # only for backend=chrome
+        execTimeoutMs: 120000
+        idleTtlMs: 600000
+        maxOutputChars: 100000
+```
+
+## Layout
+
+```
+src/index.ts            plugin entry (name/inject/Config/apply)
+src/tool.ts             the browser(code) tool definition
+src/config.ts           zod Config schema
+src/kernel/             stateful kernel: manager / kernel / sandbox(vm)
+src/sdk/                Browser / Page / LocatorView (+ impl/)
+src/backend/            ControlLink port + playwright backend
+src/governance/         BrowserError + teaching-style error text
+src/wire/               owner derivation + result rendering
+skills/browser/SKILL.md the model-facing SDK manual
+```
+
+## Status
+
+P0–P7 implemented and verified:
+
+- **P0** scaffold + fixed TS interface contracts.
+- **P2** Playwright backend (`createPlaywrightControlLink`).
+- **P3** stateful kernel (`node:vm` persistent context per workspace+session).
+- **P4** SDK (Browser/Page/LocatorView) + governed error/teaching layer.
+- **P5** Chrome CDP backend (`createChromeControlLink`, `connectOverCDP`) + manager
+  backend branching.
+- **P7** overflow stdout spilling to a workspace file + real-network e2e.
+
+Verify:
+
+```bash
+npx playwright install chromium
+npx tsx test/e2e-minloop.ts   # offline: open→snapshot→act→verify + governed errors
+npx tsx test/e2e-network.ts   # online: open example.com→click link→re-snapshot
+npx tsc --noEmit
+```
+
+> Use `npx tsx` (not `node --experimental-strip-types`) — the latter can't parse TS
+> parameter properties. If the system npm cache has root-owned files, install deps
+> with `npm install --cache /tmp/dsh-tb-npm-cache`.

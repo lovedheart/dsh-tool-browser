@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+*.log
+.npm/
+.codegraph/
+browser_output_*.txt
+browser_shot_*.png
+/tmp/

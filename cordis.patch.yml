@@ -1,0 +1,25 @@
+# dsh-tool-browser bundle patch: mount the model-facing `browser` tool.
+#
+# Applied as one insert over the profile's composed entry list. The row is
+# addressed by id (`tool-browser`) by later layers (the user's profile
+# cordis.patch.yml) which may override `config` or set `disabled`.
+#
+# Config keys (validated by the plugin's zod Config):
+#   enabled            - register the browser tool (default true)
+#   backend            - 'playwright' (managed Chromium) | 'chrome' (user CDP)
+#   headless           - launch headless (default true; handoff requires false)
+#   executablePath     - optional custom browser binary path
+#   cdpUrl             - for backend=chrome: the user browser's CDP endpoint
+#   execTimeoutMs      - cooperative per-call budget (default 120000)
+#   idleTtlMs          - reclaim an idle kernel after this long (default 600000)
+#   maxOutputChars     - cap on rendered tool output before overflow spill
+- insert:
+    - id: tool-browser
+      name: 'dsh-tool-browser'
+      config:
+        enabled: true
+        backend: playwright
+        headless: true
+        execTimeoutMs: 120000
+        idleTtlMs: 600000
+        maxOutputChars: 100000
