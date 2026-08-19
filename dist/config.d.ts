@@ -12,12 +12,44 @@ export declare const Config: z<Schemastery.ObjectS<{
     enabled: z<boolean, boolean>;
     /** 'playwright' = managed Chromium; 'chrome' = user's real browser over CDP. */
     backend: z<"playwright" | "chrome", "playwright" | "chrome">;
-    /** Headless launch. handoff() requires headed (false). */
-    headless: z<boolean, boolean>;
+    /**
+     * Headless launch. 'auto' resolves at connect time: headless inside a
+     * container (/.dockerenv) or when no display server is reachable, headed
+     * otherwise (mirrors QwenPaw's `headless: auto`). handoff() requires a
+     * headed session.
+     */
+    headless: z<boolean | "auto", boolean | "auto">;
     /** Optional custom browser binary path (playwright backend). */
     executablePath: z<string | undefined, string | undefined>;
     /** For backend=chrome: the user browser's CDP endpoint (e.g. http://127.0.0.1:9222). */
     cdpUrl: z<string | undefined, string | undefined>;
+    /**
+     * Extra Chromium launch flags (playwright backend), e.g. ['--no-sandbox'].
+     * Ignored by the chrome (CDP-attach) backend.
+     */
+    args: z<string[], string[]>;
+    /**
+     * Proxy server for the browser, e.g. 'http://127.0.0.1:7890'
+     * (playwright backend only; mirrors QwenPaw `proxy`).
+     */
+    proxy: z<string | undefined, string | undefined>;
+    /**
+     * Viewport size for new contexts (playwright backend only). When unset,
+     * Playwright's default applies.
+     */
+    viewport: z<({
+        width?: number | null | undefined;
+        height?: number | null | undefined;
+    } & import("@deepseek-ai/cosmokit").Dict) | undefined, Schemastery.ObjectT<{
+        width: z<number, number>;
+        height: z<number, number>;
+    }> | undefined>;
+    /**
+     * Persistent profile dir (playwright backend). When set the session uses
+     * `chromium.launchPersistentContext` so cookies/logins survive across
+     * restarts; otherwise a fresh ephemeral context is created.
+     */
+    userDataDir: z<string | undefined, string | undefined>;
     /** Cooperative per-call budget in ms (enforced by dsh-tool-call-timeout-policy). */
     execTimeoutMs: z<number, number>;
     /** Reclaim an idle (unpinned) kernel after this many ms. */
@@ -29,12 +61,44 @@ export declare const Config: z<Schemastery.ObjectS<{
     enabled: z<boolean, boolean>;
     /** 'playwright' = managed Chromium; 'chrome' = user's real browser over CDP. */
     backend: z<"playwright" | "chrome", "playwright" | "chrome">;
-    /** Headless launch. handoff() requires headed (false). */
-    headless: z<boolean, boolean>;
+    /**
+     * Headless launch. 'auto' resolves at connect time: headless inside a
+     * container (/.dockerenv) or when no display server is reachable, headed
+     * otherwise (mirrors QwenPaw's `headless: auto`). handoff() requires a
+     * headed session.
+     */
+    headless: z<boolean | "auto", boolean | "auto">;
     /** Optional custom browser binary path (playwright backend). */
     executablePath: z<string | undefined, string | undefined>;
     /** For backend=chrome: the user browser's CDP endpoint (e.g. http://127.0.0.1:9222). */
     cdpUrl: z<string | undefined, string | undefined>;
+    /**
+     * Extra Chromium launch flags (playwright backend), e.g. ['--no-sandbox'].
+     * Ignored by the chrome (CDP-attach) backend.
+     */
+    args: z<string[], string[]>;
+    /**
+     * Proxy server for the browser, e.g. 'http://127.0.0.1:7890'
+     * (playwright backend only; mirrors QwenPaw `proxy`).
+     */
+    proxy: z<string | undefined, string | undefined>;
+    /**
+     * Viewport size for new contexts (playwright backend only). When unset,
+     * Playwright's default applies.
+     */
+    viewport: z<({
+        width?: number | null | undefined;
+        height?: number | null | undefined;
+    } & import("@deepseek-ai/cosmokit").Dict) | undefined, Schemastery.ObjectT<{
+        width: z<number, number>;
+        height: z<number, number>;
+    }> | undefined>;
+    /**
+     * Persistent profile dir (playwright backend). When set the session uses
+     * `chromium.launchPersistentContext` so cookies/logins survive across
+     * restarts; otherwise a fresh ephemeral context is created.
+     */
+    userDataDir: z<string | undefined, string | undefined>;
     /** Cooperative per-call budget in ms (enforced by dsh-tool-call-timeout-policy). */
     execTimeoutMs: z<number, number>;
     /** Reclaim an idle (unpinned) kernel after this many ms. */
@@ -45,9 +109,17 @@ export declare const Config: z<Schemastery.ObjectS<{
 export type BrowserToolConfig = {
     enabled: boolean;
     backend: 'playwright' | 'chrome';
-    headless: boolean;
+    /** 'auto' resolves at connect time (container/no-display → headless). */
+    headless: boolean | 'auto';
     executablePath?: string;
     cdpUrl?: string;
+    args: string[];
+    proxy?: string;
+    viewport?: {
+        width: number;
+        height: number;
+    };
+    userDataDir?: string;
     execTimeoutMs: number;
     idleTtlMs: number;
     maxOutputChars: number;

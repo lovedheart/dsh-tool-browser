@@ -7,9 +7,14 @@
 # Config keys (validated by the plugin's zod Config):
 #   enabled            - register the browser tool (default true)
 #   backend            - 'playwright' (managed Chromium) | 'chrome' (user CDP)
-#   headless           - launch headless (default true; handoff requires false)
+#   headless           - true | false | 'auto' (default true; 'auto' = headless
+#                        in a container or when no display server is found)
 #   executablePath     - optional custom browser binary path
 #   cdpUrl             - for backend=chrome: the user browser's CDP endpoint
+#   args               - extra Chromium launch flags (playwright only)
+#   proxy              - proxy server URL (playwright only)
+#   viewport           - { width, height } for new contexts (playwright only)
+#   userDataDir        - persistent profile dir (playwright only)
 #   execTimeoutMs      - cooperative per-call budget (default 120000)
 #   idleTtlMs          - reclaim an idle kernel after this long (default 600000)
 #   maxOutputChars     - cap on rendered tool output before overflow spill

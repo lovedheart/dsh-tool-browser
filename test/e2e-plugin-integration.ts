@@ -52,6 +52,7 @@ const config: BrowserToolConfig = {
   headless: true,
   executablePath: undefined,
   cdpUrl: undefined,
+  args: [],
   execTimeoutMs: 120_000,
   idleTtlMs: 60_000,
   maxOutputChars: 100_000,

@@ -95,9 +95,22 @@ export interface LocatorSpec {
 /** Launch/connect options for a backend. */
 export interface BackendOptions {
   readonly backend: 'playwright' | 'chrome';
+  /**
+   * Already-resolved headless flag. Callers (the KernelManager) resolve a
+   * config-level 'auto' to a concrete boolean before constructing this, so the
+   * backends only ever see `true`/`false`.
+   */
   readonly headless: boolean;
   readonly executablePath?: string;
   readonly cdpUrl?: string;
+  /** Extra Chromium launch flags (playwright backend only). */
+  readonly args?: string[];
+  /** Proxy server, e.g. 'http://127.0.0.1:7890' (playwright backend only). */
+  readonly proxy?: string;
+  /** Viewport for new contexts (playwright backend only). */
+  readonly viewport?: { width: number; height: number };
+  /** Persistent profile dir (playwright backend only; enables persistent context). */
+  readonly userDataDir?: string;
   readonly identity: IdentityLike;
   /** Workspace dir where screenshots / overflow output are written. */
   readonly workspaceDir: string;

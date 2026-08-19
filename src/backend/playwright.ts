@@ -40,10 +40,12 @@ class PlaywrightSession implements BackendSession {
   private pageMap = new Map<string, PageRecord>();
   private nextPageNum = 1;
   private context: BrowserContext;
-  private browser: Browser;
+  /** Undefined for persistent contexts (launchPersistentContext), where the
+   * context owns the browser process and closing it closes the browser. */
+  private browser?: Browser;
   private readonly opts: BackendOptions;
 
-  constructor(browser: Browser, context: BrowserContext, opts: BackendOptions) {
+  constructor(browser: Browser | undefined, context: BrowserContext, opts: BackendOptions) {
     this.browser = browser;
     this.context = context;
     this.opts = opts;
@@ -124,7 +126,7 @@ class PlaywrightSession implements BackendSession {
   /** Close context + browser. */
   async close(): Promise<void> {
     await this.context.close();
-    await this.browser.close();
+    await this.browser?.close();
   }
 
   private activeId(): string {
@@ -149,12 +151,29 @@ class PlaywrightSession implements BackendSession {
 export function createPlaywrightControlLink(): ControlLink {
   return {
     async connect(opts: BackendOptions): Promise<BackendSession> {
-      const browser = await chromium.launch({
-        headless: opts.headless,
-        executablePath: opts.executablePath,
-      });
-      const context = await browser.newContext();
-      return new PlaywrightSession(browser, context, opts);
+      // Viewport is a *context* option in Playwright (not a launch option);
+      // args/proxy/executablePath are launch options.
+      const launchOptions: {
+        headless: boolean;
+        executablePath?: string;
+        args?: string[];
+        proxy?: { server: string };
+      } = { headless: opts.headless };
+      if (opts.executablePath) launchOptions.executablePath = opts.executablePath;
+      if (opts.args?.length) launchOptions.args = opts.args;
+      if (opts.proxy) launchOptions.proxy = { server: opts.proxy };
+
+      if (opts.userDataDir) {
+        const context = await chromium.launchPersistentContext(opts.userDataDir, {
+          ...launchOptions,
+          viewport: opts.viewport,
+        });
+        return new PlaywrightSession(undefined, context, opts);
+      } else {
+        const browser = await chromium.launch(launchOptions);
+        const context = await browser.newContext({ viewport: opts.viewport });
+        return new PlaywrightSession(browser, context, opts);
+      }
     },
   };
 }

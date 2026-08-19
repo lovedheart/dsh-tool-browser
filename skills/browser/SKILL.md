@@ -45,7 +45,7 @@ Navigation: `await page.goto(url)` · `goBack()` · `goForward()` · `reload()` 
 Waiting: `await page.waitForLoadState('load'|'domcontentloaded'|'networkidle', timeoutMs?)` ·
 `await page.waitForTimeout(ms)` (capped at 30000; prefer locator.waitFor).
 
-Perception: `await page.snapshot(query?)` → `{text, match_count?}` ·
+Perception: `await page.snapshot(query?)` → `{text, elements?, match_count?}` ·
 `await page.currentSurface()` → `{url,title,load_state}` ·
 `await page.screenshot()` → `{path}`.
 
@@ -75,7 +75,10 @@ Check `count()` first, or narrow with `.first`/`.nth(i)`/a filter.
 
 ## Reading results
 
-- `snapshot()` → read `.text`; `.match_count` when you pass a query.
+- `snapshot()` → read `.text`; `.match_count` when you pass a query. `.elements` is
+  a structured list from the accessibility tree — each `{role, name, text, ref_id?}`
+  (e.g. `button`/`heading`/`textbox`). Use it to pick semantic locators; `ref_id`
+  is an aria-snapshot id, not a selector.
 - `currentSurface()` → `.url`, `.title`, `.load_state`.
 - page refs → `.id`, `.url`, `.title`, `.active`.
 - `screenshot()` → result dict; read `["path"]`.

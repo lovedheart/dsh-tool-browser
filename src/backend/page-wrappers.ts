@@ -16,7 +16,74 @@ import type {
   BackendPage,
   LocatorSpec,
 } from './ports.ts';
-import type { CurrentSurface, Observation } from '../sdk/contracts.ts';
+import type { CurrentSurface, Observation, ObservedElement } from '../sdk/contracts.ts';
+
+// ---------------------------------------------------------------------------
+// Aria-snapshot parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a Playwright `ariaSnapshot({ mode: 'ai' })` string into flat
+ * {@link ObservedElement} records.
+ *
+ * The ai-mode tree is line-oriented: 2-space indent per level, `- ` bullet per
+ * node, the first token is the ARIA role, an optional quoted string is the
+ * accessible name, a trailing `: text` is the node's visible text, and
+ * `[ref=eN]` tags carry a stable element id. Meta continuation lines
+ * (`/url: ...`, `/placeholder: ...`) are attributes of the preceding node and
+ * are skipped. Lines like `- text: Foo` use the keyword `text` itself as the
+ * "role".
+ *
+ * Empty structural wrappers (no name, no text, no ref) are dropped to keep the
+ * element list compact; named/labelled nodes and all ref-tagged containers are
+ * kept.
+ */
+export function parseAriaSnapshot(tree: string): ObservedElement[] {
+  const ref = /\[ref=([A-Za-z0-9_-]+)\]/;
+  const elements: ObservedElement[] = [];
+  for (const raw of tree.split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    if (!line.trim()) continue;
+    let i = 0;
+    while (i < line.length && line[i] === ' ') i++;
+    let body = line.slice(i);
+    if (!body.startsWith('-')) continue; // not a node line
+    body = body.slice(1).replace(/^\s+/, '');
+    if (!body || body.startsWith('/')) continue; // meta continuation line
+
+    // 1. Role = first token. A pseudo-role may carry a trailing colon
+    //    (e.g. `text: Foo` → role `text`); the colon is part of the token.
+    const rm = body.match(/^(\S+)/);
+    let role = rm ? rm[1] : '';
+    let rest = rm ? body.slice(rm[0].length).trim() : body;
+    if (role.endsWith(':')) role = role.slice(0, -1); // `text:` pseudo-role
+
+    // 2. Optional quoted accessible name, immediately after the role.
+    let name = '';
+    const nm = rest.match(/^"(.*)"\s*(.*)$/);
+    if (nm) {
+      name = nm[1];
+      rest = nm[2];
+    }
+
+    // 3. Strip leading bracketed attributes (`[level=1]`, `[ref=e12]`, ...).
+    rest = rest.replace(/^\s*(?:\[[^\]]*\]\s*)*/, '');
+
+    // 4. Optional trailing `: text` payload.
+    let text = '';
+    if (rest.startsWith(':')) {
+      text = rest.slice(1).trim();
+    } else if (rest) {
+      text = rest; // e.g. `text: Foo` already split at the token boundary
+    }
+
+    const refMatch = body.match(ref);
+    const refId = refMatch ? refMatch[1] : undefined;
+    if (!name && !text && !refId) continue; // drop empty anonymous wrappers
+    elements.push({ role, name, text, ...(refId ? { ref_id: refId } : {}) });
+  }
+  return elements;
+}
 
 // ---------------------------------------------------------------------------
 // BackendLocator wrapper
@@ -309,7 +376,7 @@ export class PlaywrightPage implements BackendPage {
     );
   }
 
-  /** Perceive: page text (+ optional query match count). */
+  /** Perceive: page text (+ optional query match count) + structured elements. */
   async snapshot(query?: string): Promise<Observation> {
     let text = '';
     try {
@@ -317,14 +384,29 @@ export class PlaywrightPage implements BackendPage {
     } catch {
       text = '';
     }
+
+    // Structured elements from the accessibility tree. Playwright 1.62 removed
+    // `page.accessibility.snapshot()`; the modern API is `page.ariaSnapshot`
+    // with `mode: 'ai'`, which emits a line-oriented tree tagged with stable
+    // `[ref=eN]` ids (the analogue of QwenPaw's `ObservedElement.ref_id`).
+    // Best-effort: if it throws (older runtime / mid-navigation) we still
+    // return the text observation.
+    let elements: ObservedElement[] | undefined;
+    try {
+      const tree = await this.page.ariaSnapshot({ mode: 'ai' });
+      elements = parseAriaSnapshot(tree);
+    } catch {
+      elements = undefined;
+    }
+
     if (query !== undefined) {
       const q = query.toLowerCase();
       const match_count = text
         .split('\n')
         .filter((line) => line.toLowerCase().includes(q)).length;
-      return { text, match_count };
+      return { text, elements, match_count };
     }
-    return { text };
+    return { text, elements };
   }
 
   /** Current surface info. */

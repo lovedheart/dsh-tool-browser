@@ -48,8 +48,13 @@ in your profile's `cordis.patch.yml`:
     - id: tool-browser
       config:
         backend: playwright     # or 'chrome'
-        headless: false         # required for handoff()
+        headless: false         # required for handoff(); 'auto' = headless in a
+                                # container / when no display server is found
         cdpUrl: http://127.0.0.1:9222   # only for backend=chrome
+        args: ['--no-sandbox']  # extra Chromium launch flags (playwright only)
+        proxy: http://127.0.0.1:7890    # proxy server (playwright only)
+        viewport: { width: 1280, height: 800 }  # new contexts (playwright only)
+        userDataDir: /path/to/profile          # persistent profile (playwright only)
         execTimeoutMs: 120000
         idleTtlMs: 600000
         maxOutputChars: 100000
@@ -80,6 +85,9 @@ P0–P7 implemented and verified:
 - **P5** Chrome CDP backend (`createChromeControlLink`, `connectOverCDP`) + manager
   backend branching.
 - **P7** overflow stdout spilling to a workspace file + real-network e2e.
+- **P8** snapshot structured elements (`ariaSnapshot` ai-mode → `Observation.elements`)
+  + launch options `args`/`proxy`/`viewport`/`userDataDir` (persistent profile) +
+  `headless: 'auto'` (container/no-display → headless).
 
 Verify:
 

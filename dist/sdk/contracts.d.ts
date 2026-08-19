@@ -3,10 +3,31 @@
  * These are the value shapes the model reads back from Browser/Page/Locator
  * calls. Kept dependency-free so kernel, backend, and sdk all import them.
  */
+/**
+ * A single element from the page's accessibility tree, ported from QwenPaw's
+ * `ObservedElement` (browser/sdk/contracts.py).
+ */
+export interface ObservedElement {
+    /** ARIA role, e.g. 'button', 'heading', 'textbox'. */
+    readonly role: string;
+    /** Accessible name of the element. */
+    readonly name: string;
+    /** Visible text content (for leaf nodes like paragraphs). */
+    readonly text: string;
+    /** Stable reference id from the aria snapshot (e.g. 'e12'), if available. */
+    readonly ref_id?: string;
+}
 /** Result of `page.snapshot()` — the primary perception surface. */
 export interface Observation {
     /** Page text (accessibility/DOM derived). */
     readonly text: string;
+    /**
+     * Structured elements extracted from the accessibility tree via
+     * `page.ariaSnapshot({ mode: 'ai' })`. Each element carries its role,
+     * accessible name, visible text, and a stable `ref_id` for follow-up.
+     * May be empty if the page has no accessible structure yet.
+     */
+    readonly elements?: ObservedElement[];
     /** When a `query` was passed: how many lines matched. */
     readonly match_count?: number;
 }

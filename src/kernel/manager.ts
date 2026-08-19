@@ -8,18 +8,40 @@
  * yet installed.
  */
 
+import { existsSync } from 'node:fs';
 import type { Owner } from '../sdk/contracts.ts';
 import type { BrowserHooks } from '../sdk/facade.ts';
 import type { ExecRequest, ExecResult, Kernel, KernelManager } from './types.ts';
 import { KernelImpl } from './kernel.ts';
 import { Sandbox } from './sandbox.ts';
 
+/**
+ * Resolve a config-level `headless` value ('auto' | true | false) to a concrete
+ * boolean, mirroring QwenPaw's launch_resolve: headless inside a container
+ * (`/.dockerenv`) or when no display server is reachable, headed otherwise.
+ */
+export function resolveHeadless(value: boolean | 'auto'): boolean {
+  if (value !== 'auto') return value;
+  if (process.platform !== 'linux') return false; // native desktop → headed
+  if (existsSync('/.dockerenv')) return true; // container → headless
+  return !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY; // no display server → headless
+}
+
 /** Configuration for {@link createKernelManager}. */
 export interface ManagerConfig {
   readonly backend: 'playwright' | 'chrome';
-  readonly headless: boolean;
+  /** true | false | 'auto' — 'auto' is resolved at connect time. */
+  readonly headless: boolean | 'auto';
   readonly executablePath?: string;
   readonly cdpUrl?: string;
+  /** Extra Chromium launch flags (playwright backend only). */
+  readonly args?: string[];
+  /** Proxy server URL (playwright backend only). */
+  readonly proxy?: string;
+  /** Viewport for new contexts (playwright backend only). */
+  readonly viewport?: { width: number; height: number };
+  /** Persistent profile dir (playwright backend only). */
+  readonly userDataDir?: string;
   /** Reclaim an idle (unpinned) kernel after this many ms. */
   readonly idleTtlMs: number;
   /** Resolve the workspace dir for screenshots/overflow at connect time. */
@@ -58,11 +80,16 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     const link = cfg.backend === 'chrome'
       ? (await import('../backend/chrome-cdp.ts')).createChromeControlLink()
       : (await import('../backend/playwright.ts')).createPlaywrightControlLink();
+    const headless = resolveHeadless(cfg.headless);
     const session = await link.connect({
       backend: cfg.backend,
-      headless: cfg.headless,
+      headless,
       executablePath: cfg.executablePath,
       cdpUrl: cfg.cdpUrl,
+      args: cfg.args,
+      proxy: cfg.proxy,
+      viewport: cfg.viewport,
+      userDataDir: cfg.userDataDir,
       identity: 'auto',
       workspaceDir: cfg.workspaceDir(),
     });

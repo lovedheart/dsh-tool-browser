@@ -9,7 +9,24 @@
  */
 import type { FrameLocator, Locator, Page } from 'playwright';
 import type { BackendLocator, BackendPage, LocatorSpec } from './ports.ts';
-import type { CurrentSurface, Observation } from '../sdk/contracts.ts';
+import type { CurrentSurface, Observation, ObservedElement } from '../sdk/contracts.ts';
+/**
+ * Parse a Playwright `ariaSnapshot({ mode: 'ai' })` string into flat
+ * {@link ObservedElement} records.
+ *
+ * The ai-mode tree is line-oriented: 2-space indent per level, `- ` bullet per
+ * node, the first token is the ARIA role, an optional quoted string is the
+ * accessible name, a trailing `: text` is the node's visible text, and
+ * `[ref=eN]` tags carry a stable element id. Meta continuation lines
+ * (`/url: ...`, `/placeholder: ...`) are attributes of the preceding node and
+ * are skipped. Lines like `- text: Foo` use the keyword `text` itself as the
+ * "role".
+ *
+ * Empty structural wrappers (no name, no text, no ref) are dropped to keep the
+ * element list compact; named/labelled nodes and all ref-tagged containers are
+ * kept.
+ */
+export declare function parseAriaSnapshot(tree: string): ObservedElement[];
 /**
  * Wraps a Playwright `Locator` / `FrameLocator` into the backend's
  * {@link BackendLocator} interface. Read-only composition helpers; each
@@ -112,7 +129,7 @@ export declare class PlaywrightPage implements BackendPage {
     reload(): Promise<Record<string, unknown>>;
     /** Wait for a load state. */
     waitForLoadState(state: string, timeoutMs?: number): Promise<void>;
-    /** Perceive: page text (+ optional query match count). */
+    /** Perceive: page text (+ optional query match count) + structured elements. */
     snapshot(query?: string): Promise<Observation>;
     /** Current surface info. */
     currentSurface(): Promise<CurrentSurface>;

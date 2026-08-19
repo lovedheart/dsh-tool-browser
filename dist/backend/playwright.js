@@ -20,6 +20,8 @@ class PlaywrightSession {
     pageMap = new Map();
     nextPageNum = 1;
     context;
+    /** Undefined for persistent contexts (launchPersistentContext), where the
+     * context owns the browser process and closing it closes the browser. */
     browser;
     opts;
     constructor(browser, context, opts) {
@@ -98,7 +100,7 @@ class PlaywrightSession {
     /** Close context + browser. */
     async close() {
         await this.context.close();
-        await this.browser.close();
+        await this.browser?.close();
     }
     activeId() {
         for (const [id, rec] of this.pageMap) {
@@ -121,12 +123,27 @@ class PlaywrightSession {
 export function createPlaywrightControlLink() {
     return {
         async connect(opts) {
-            const browser = await chromium.launch({
-                headless: opts.headless,
-                executablePath: opts.executablePath,
-            });
-            const context = await browser.newContext();
-            return new PlaywrightSession(browser, context, opts);
+            // Viewport is a *context* option in Playwright (not a launch option);
+            // args/proxy/executablePath are launch options.
+            const launchOptions = { headless: opts.headless };
+            if (opts.executablePath)
+                launchOptions.executablePath = opts.executablePath;
+            if (opts.args?.length)
+                launchOptions.args = opts.args;
+            if (opts.proxy)
+                launchOptions.proxy = { server: opts.proxy };
+            if (opts.userDataDir) {
+                const context = await chromium.launchPersistentContext(opts.userDataDir, {
+                    ...launchOptions,
+                    viewport: opts.viewport,
+                });
+                return new PlaywrightSession(undefined, context, opts);
+            }
+            else {
+                const browser = await chromium.launch(launchOptions);
+                const context = await browser.newContext({ viewport: opts.viewport });
+                return new PlaywrightSession(browser, context, opts);
+            }
         },
     };
 }

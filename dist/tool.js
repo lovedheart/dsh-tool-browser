@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import { createKernelManager } from "./kernel/manager.js";
+import { createKernelManager, resolveHeadless } from "./kernel/manager.js";
 import { renderExecResult } from "./wire/render.js";
 import { deriveWorkspaceId } from "./wire/owner.js";
 const BROWSER_TOOL_DESCRIPTION = `Drive a live browser by writing async JavaScript against the built-in Browser SDK.
@@ -38,6 +38,10 @@ export function registerBrowserTool(ctx, config) {
         headless: config.headless,
         executablePath: config.executablePath,
         cdpUrl: config.cdpUrl,
+        args: config.args,
+        proxy: config.proxy,
+        viewport: config.viewport,
+        userDataDir: config.userDataDir,
         idleTtlMs: config.idleTtlMs,
         workspaceDir: () => process.cwd(),
     });
@@ -118,7 +122,7 @@ export function registerBrowserTool(ctx, config) {
             // Headed deployments only: a handoff means a human takes over the
             // browser, so hold the kernel against the idle TTL until the model
             // resumes. (In headless mode handoff raises an error instead.)
-            { pinAfterHandoff: !config.headless });
+            { pinAfterHandoff: !resolveHeadless(config.headless) });
             // Forward cooperative cancellation into the kernel on abort.
             if (exec.signal?.aborted)
                 await manager.closeSession(owner);

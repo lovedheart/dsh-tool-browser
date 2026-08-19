@@ -7,8 +7,23 @@
  * factory are imported dynamically so the plugin loads even when a backend is not
  * yet installed.
  */
+import { existsSync } from 'node:fs';
 import { KernelImpl } from "./kernel.js";
 import { Sandbox } from "./sandbox.js";
+/**
+ * Resolve a config-level `headless` value ('auto' | true | false) to a concrete
+ * boolean, mirroring QwenPaw's launch_resolve: headless inside a container
+ * (`/.dockerenv`) or when no display server is reachable, headed otherwise.
+ */
+export function resolveHeadless(value) {
+    if (value !== 'auto')
+        return value;
+    if (process.platform !== 'linux')
+        return false; // native desktop → headed
+    if (existsSync('/.dockerenv'))
+        return true; // container → headless
+    return !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY; // no display server → headless
+}
 /** Stable cache key for one owner (workspace + session). */
 function ownerKey(owner) {
     return `${owner.workspace_id}/${owner.session_id}`;
@@ -31,11 +46,16 @@ export function createKernelManager(cfg) {
         const link = cfg.backend === 'chrome'
             ? (await import("../backend/chrome-cdp.js")).createChromeControlLink()
             : (await import("../backend/playwright.js")).createPlaywrightControlLink();
+        const headless = resolveHeadless(cfg.headless);
         const session = await link.connect({
             backend: cfg.backend,
-            headless: cfg.headless,
+            headless,
             executablePath: cfg.executablePath,
             cdpUrl: cfg.cdpUrl,
+            args: cfg.args,
+            proxy: cfg.proxy,
+            viewport: cfg.viewport,
+            userDataDir: cfg.userDataDir,
             identity: 'auto',
             workspaceDir: cfg.workspaceDir(),
         });

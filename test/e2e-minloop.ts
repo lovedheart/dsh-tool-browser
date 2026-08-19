@@ -39,6 +39,18 @@ try {
   check('no error on open', r1.error === undefined, r1.error ? JSON.stringify(r1.error) : '');
   const v1 = JSON.parse(r1.value || 'null');
   check('snapshot sees page text', v1?.hasHello === true, JSON.stringify(v1));
+  // structured elements from the aria tree (ai-mode snapshot)
+  const r1b = await manager.execute({
+    requestId: 'r1b',
+    owner,
+    code: `
+      obs2 = await page.snapshot();
+      return { elements: (obs2.elements || []).map(e => e.role + ":" + e.name) };
+    `,
+  });
+  const v1b = JSON.parse(r1b.value || 'null');
+  check('snapshot returns structured elements', Array.isArray(v1b?.elements) && v1b.elements.length > 0, JSON.stringify(v1b));
+  check('elements carry roles (button/input present)', (v1b?.elements || []).some((e: string) => e.startsWith('button')) && (v1b?.elements || []).some((e: string) => e.startsWith('textbox')), JSON.stringify(v1b?.elements));
   check('currentSurface title', v1?.title === 'Test Page', v1?.title);
 
   // 2. act: fill the input, click the button, verify the page reacted

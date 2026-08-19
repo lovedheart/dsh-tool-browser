@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { BrowserToolConfig } from './config.ts';
 import type { KernelManager, ExecResult } from './kernel/types.ts';
-import { createKernelManager } from './kernel/manager.ts';
+import { createKernelManager, resolveHeadless } from './kernel/manager.ts';
 import { renderExecResult } from './wire/render.ts';
 import { deriveWorkspaceId } from './wire/owner.ts';
 
@@ -44,6 +44,10 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
     headless: config.headless,
     executablePath: config.executablePath,
     cdpUrl: config.cdpUrl,
+    args: config.args,
+    proxy: config.proxy,
+    viewport: config.viewport,
+    userDataDir: config.userDataDir,
     idleTtlMs: config.idleTtlMs,
     workspaceDir: () => process.cwd(),
   });
@@ -128,7 +132,7 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
           // Headed deployments only: a handoff means a human takes over the
           // browser, so hold the kernel against the idle TTL until the model
           // resumes. (In headless mode handoff raises an error instead.)
-          { pinAfterHandoff: !config.headless },
+          { pinAfterHandoff: !resolveHeadless(config.headless) },
         );
         // Forward cooperative cancellation into the kernel on abort.
         if (exec.signal?.aborted) await manager.closeSession(owner);
