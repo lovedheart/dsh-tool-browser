@@ -62,19 +62,18 @@ class ChromeSession implements BackendSession {
   private nextPageNum = 1;
   private context: BrowserContext;
   private browser: Browser;
+  private readonly opts: BackendOptions;
 
   /**
    * @param browser A CDP-connected `Browser` (from `chromium.connectOverCDP`).
    * @param context The default (or freshly created) `BrowserContext` to create
    *   pages in. A CDP-attached browser usually already has a default context.
+   * @param opts Backend options (persisted, read by later page operations).
    */
-  constructor(
-    browser: Browser,
-    context: BrowserContext,
-    private readonly opts: BackendOptions,
-  ) {
+  constructor(browser: Browser, context: BrowserContext, opts: BackendOptions) {
     this.browser = browser;
     this.context = context;
+    this.opts = opts;
   }
 
   /** Get or create the active page; optionally navigate to url. */

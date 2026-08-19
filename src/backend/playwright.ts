@@ -41,14 +41,12 @@ class PlaywrightSession implements BackendSession {
   private nextPageNum = 1;
   private context: BrowserContext;
   private browser: Browser;
+  private readonly opts: BackendOptions;
 
-  constructor(
-    browser: Browser,
-    context: BrowserContext,
-    private readonly opts: BackendOptions,
-  ) {
+  constructor(browser: Browser, context: BrowserContext, opts: BackendOptions) {
     this.browser = browser;
     this.context = context;
+    this.opts = opts;
   }
 
   /** Get or create the active page; optionally navigate to url. */

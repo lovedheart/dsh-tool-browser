@@ -1,0 +1,143 @@
+/**
+ * The model-facing `browser` tool. Owns: the tool schema, the system-prompt
+ * section, argument validation, the execute→KernelManager→render chain, overflow
+ * spill, and presentation cards. Delegates all browser state to the kernel.
+ */
+import { randomUUID } from 'node:crypto';
+import { defineTool } from '@deepseek-ai/dsh-tools';
+import { createKernelManager } from "./kernel/manager.js";
+import { renderExecResult } from "./wire/render.js";
+import { deriveWorkspaceId } from "./wire/owner.js";
+const BROWSER_TOOL_DESCRIPTION = `Drive a live browser by writing async JavaScript against the built-in Browser SDK.
+Your code runs in a stateful runtime and the SDK is already in scope as Browser. Begin every session with:
+    browser = await Browser.connect()
+    page = await browser.open("https://example.com")
+
+Work in a loop: read page state with await page.snapshot(), act through semantic
+locators, and re-snapshot to confirm. For login, captcha, or 2FA, call
+await browser.handoff(reason, instructions) and stop — never automate them.
+
+The complete, authoritative reference ships with the browser skill. The API surface
+is closed: anything not listed does not exist. Re-load the browser skill after
+context compaction.
+
+Arg: code — module-level async JavaScript (await; return a value or print()).`;
+/** Build the owner key for the current DSH session/workspace. */
+function ownerFor(sessionId) {
+    // The dsh web process runs with its working directory set to the active
+    // workspace; kernel state and output spills live there. The runtime does NOT
+    // expose a singular `workspace` service on the plugin ctx (it provides
+    // `workspaces`, plural, in the client runtime), so deriving from cwd is the
+    // stable, throw-free seam — the proxy ctx rejects undeclared props.
+    const workspaceDir = process.cwd();
+    return { workspace_id: deriveWorkspaceId(workspaceDir), session_id: sessionId ?? 'default' };
+}
+export function registerBrowserTool(ctx, config) {
+    const manager = createKernelManager({
+        backend: config.backend,
+        headless: config.headless,
+        executablePath: config.executablePath,
+        cdpUrl: config.cdpUrl,
+        idleTtlMs: config.idleTtlMs,
+        workspaceDir: () => process.cwd(),
+    });
+    // Effect-scoped teardown: Cordis auto-mixes `effect` onto the ctx (no inject
+    // needed). Registering the disposer as an effect disposes the kernels when
+    // the plugin fiber unloads. (ctx.addDispose does not exist on the real
+    // runtime; the e2e fake ctx invented it.)
+    ctx.effect(() => {
+        return () => {
+            try {
+                manager.dispose();
+            }
+            catch {
+                /* ignore */
+            }
+        };
+    }, 'dsh-tool-browser: kernel manager');
+    ctx.systemPrompt.section({
+        name: 'tool:browser',
+        order: 120,
+        text: 'Use the browser tool to drive a live web browser by writing async JavaScript against the Browser SDK (already in scope as Browser). Perceive with page.snapshot(), act via semantic locators, re-snapshot to verify. For login/captcha/2FA call browser.handoff(...) and stop.',
+    });
+    ctx.tools.register(defineTool({
+        name: 'browser',
+        description: BROWSER_TOOL_DESCRIPTION,
+        parameters: {
+            code: {
+                type: 'string',
+                required: true,
+                description: 'Module-level async JavaScript to run against the Browser SDK. May `return` a value or use print().',
+            },
+        },
+        output: {
+            schema: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                    // The kernel stamps every ExecResult with a requestId; it MUST be
+                    // declared here, or the dsh-tools runtime's output-schema validation
+                    // (createSuccessResult) rejects every successful call with a
+                    // ToolOutputError.
+                    requestId: { type: 'string' },
+                    value: { type: 'string' },
+                    stdout: { type: 'string' },
+                    error: { type: 'object', additionalProperties: true },
+                    handoff: {
+                        type: 'object',
+                        additionalProperties: false,
+                        properties: { reason: { type: 'string' }, instructions: { type: 'string' } },
+                    },
+                },
+            },
+            render: (_args, value) => {
+                const v = value;
+                // Spill oversized output into the active workspace dir (idempotent by content hash).
+                const spillDir = process.cwd();
+                return [{ type: 'text', text: renderExecResult(v, config.maxOutputChars, spillDir) }];
+            },
+            presentationMeta: (_args, value) => {
+                const v = value;
+                return {
+                    ...(v.handoff ? { handoff: v.handoff.reason } : {}),
+                    isError: v.error !== undefined,
+                };
+            },
+        },
+        timeoutMs: config.execTimeoutMs,
+        isConcurrencySafe: () => false, // one browser per session; serialize calls
+        async execute(args, exec) {
+            const code = String(args.code ?? '');
+            if (code.trim().length === 0)
+                throw new Error('code must be a non-empty string');
+            // Real session seam: the dispatch exec carries the calling agent, whose
+            // session.id is stable per conversation. `exec.agent` is undefined for
+            // the global view, in which case ownerFor falls back to 'default'.
+            const owner = ownerFor(exec?.agent?.session?.id);
+            const result = await manager.execute({ requestId: randomUUID(), code, owner }, 
+            // Headed deployments only: a handoff means a human takes over the
+            // browser, so hold the kernel against the idle TTL until the model
+            // resumes. (In headless mode handoff raises an error instead.)
+            { pinAfterHandoff: !config.headless });
+            // Forward cooperative cancellation into the kernel on abort.
+            if (exec.signal?.aborted)
+                await manager.closeSession(owner);
+            return result;
+        },
+        presentCall: (args) => ({
+            card: 'generic',
+            title: 'browser',
+            kind: 'execute',
+            rawInput: String(args.code ?? '').slice(0, 200),
+        }),
+        presentResult: (args, result) => {
+            if (result.isError)
+                return undefined;
+            return {
+                card: 'generic',
+                title: 'browser',
+                content: undefined,
+            };
+        },
+    }));
+}

@@ -28,11 +28,15 @@ import type { CurrentSurface, Observation } from '../sdk/contracts.ts';
  * action returns a short evidence line.
  */
 export class PlaywrightLocator implements BackendLocator {
-  constructor(
-    private readonly loc: Locator | FrameLocator,
-    private readonly workspaceDir: string,
-    private readonly id: string,
-  ) {}
+  private readonly loc: Locator | FrameLocator;
+  private readonly workspaceDir: string;
+  private readonly id: string;
+
+  constructor(loc: Locator | FrameLocator, workspaceDir: string, id: string) {
+    this.loc = loc;
+    this.workspaceDir = workspaceDir;
+    this.id = id;
+  }
 
   // -- compose / scope ------------------------------------------------------
 
@@ -225,13 +229,13 @@ export class PlaywrightLocator implements BackendLocator {
  */
 export class PlaywrightPage implements BackendPage {
   readonly id: string;
+  readonly page: Page;
+  private readonly workspaceDir: string;
 
-  constructor(
-    readonly page: Page,
-    id: string,
-    private readonly workspaceDir: string,
-  ) {
+  constructor(page: Page, id: string, workspaceDir: string) {
+    this.page = page;
     this.id = id;
+    this.workspaceDir = workspaceDir;
   }
 
   /** Navigate to url; returns raw navigation facts. */

@@ -8,22 +8,43 @@
 import * as plugin from '../src/index.ts';
 import { validateJsonSchemaValue } from '@deepseek-ai/dsh-tools';
 import type { BrowserToolConfig } from '../src/config.ts';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
-const wsDir = join(tmpdir(), 'dsh-tb-plugin-ws');
 
 // --- faithful ctx mock (only the seams the plugin touches) -------------------
 let registered: any = null;
 let sections: any[] = [];
 const disposers: Array<() => void> = [];
-const ctx = {
+// Faithful to the REAL Cordis ctx the plugin now touches: `tools`,
+// `systemPrompt`, and the auto-mixed `effect` (no inject). It deliberately has
+// NO `session`/`workspace` seam — the plugin must not read those (the runtime
+// proxy rejects undeclared props); session id now comes from exec.agent.session.
+const ctxTarget = {
   tools: { register: (t: unknown) => { registered = t; } },
   systemPrompt: { section: (s: any) => { sections.push(s); } },
-  addDispose: (fn: () => void) => { disposers.push(fn); },
-  session: { id: 'int-session' },
-  workspace: { dir: wsDir },
+  // Cordis auto-mixes `effect` onto ctx (mixin fiber ["runtime","effect"]);
+  // no inject declaration required.
+  effect: (fn: () => unknown, _label?: string) => {
+    disposers.push(() => {
+      const c = fn();
+      if (typeof c === 'function') (c as () => void)();
+    });
+  },
 };
+// Mirror the REAL Cordis ctx proxy: any property access that is not one of the
+// declared seams above throws "without inject". This is what bit the plugin in
+// the live harness (ctx.addDispose / ctx.session / ctx.workspace). A plain
+// object mock would silently return undefined for those and hide the bug.
+const ctx: any = new Proxy(ctxTarget, {
+  get(t, prop) {
+    if (typeof prop === 'symbol' || prop === 'then' || prop === 'prototype') return (t as any)[prop];
+    if (!(prop in t)) {
+      throw new Error(`cannot get property "${String(prop)}" without inject`);
+    }
+    return (t as any)[prop];
+  },
+});
+// dispatch exec: the real ToolRuntime passes { signal, agent } where
+// agent.session.id is the stable per-conversation identity.
+const exec = { signal: new AbortController().signal, agent: { session: { id: 'int-session' } } };
 
 const config: BrowserToolConfig = {
   enabled: true,
@@ -60,13 +81,12 @@ const pc = registered.presentCall({ code: 'browser = await Browser.connect()' })
 check('presentCall generic/execute', pc?.card === 'generic' && pc?.kind === 'execute', JSON.stringify(pc?.kind));
 
 // 3. drive the tool through defineTool's own validation + execute
-const signal = new AbortController().signal;
 const r1 = await registered.execute({ code: `
   browser = await Browser.connect();
   page = await browser.open("data:text/html,<title>Plugin E2E</title><h1>Integrated</h1>");
   obs = await page.snapshot();
   return { seen: obs.text.includes("Integrated") };
-` }, { signal });
+` }, exec);
 check('execute returns ExecResult', r1 && typeof r1 === 'object' && 'requestId' in r1, String(r1?.requestId));
 check('no error on plugin e2e open', r1.error === undefined, r1.error ? JSON.stringify(r1.error) : '');
 check('plugin e2e sees page', JSON.parse(r1.value || 'null')?.seen === true, r1.value);
@@ -85,11 +105,11 @@ const meta = registered.output.presentationMeta({ code: '' }, r1);
 check('presentationMeta isError=false on success', meta?.isError === false, JSON.stringify(meta));
 
 // 5. stateful: second call reuses the session
-const r2 = await registered.execute({ code: `return { still: typeof page !== "undefined" };` }, { signal });
+const r2 = await registered.execute({ code: `return { still: typeof page !== "undefined" };` }, exec);
 check('stateful across tool calls', JSON.parse(r2.value || 'null')?.still === true, r2.value);
 
 // 6. governed error path through the real tool
-const r3 = await registered.execute({ code: `await page.nope();` }, { signal });
+const r3 = await registered.execute({ code: `await page.nope();` }, exec);
 check('plugin e2e surfaces governed error', r3.error != null, r3.error?.category);
 const errMeta = registered.output.presentationMeta({ code: '' }, r3);
 check('presentationMeta isError=true on error', errMeta?.isError === true, JSON.stringify(errMeta));
@@ -98,7 +118,7 @@ check('error rendered as teaching text', /^\[/.test(errText) || errText.includes
 
 // 7. arg validation (empty code rejected by defineTool)
 let threw = false;
-try { await registered.execute({ code: '   ' }, { signal }); } catch { threw = true; }
+try { await registered.execute({ code: '   ' }, exec); } catch { threw = true; }
 check('empty code rejected by defineTool validation', threw, '');
 
 // 8. teardown via dispose (effect-scoped)

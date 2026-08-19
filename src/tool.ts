@@ -28,11 +28,14 @@ context compaction.
 Arg: code — module-level async JavaScript (await; return a value or print()).`;
 
 /** Build the owner key for the current DSH session/workspace. */
-function ownerFor(ctx: any): { workspace_id: string; session_id: string } {
-  // DSH session identity: prefer an explicit seam if present, else derive from cwd.
-  const sessionId: string = ctx?.session?.id ?? 'default';
-  const workspaceDir: string = ctx?.workspace?.dir ?? process.cwd();
-  return { workspace_id: deriveWorkspaceId(workspaceDir), session_id: sessionId };
+function ownerFor(sessionId: string | undefined): { workspace_id: string; session_id: string } {
+  // The dsh web process runs with its working directory set to the active
+  // workspace; kernel state and output spills live there. The runtime does NOT
+  // expose a singular `workspace` service on the plugin ctx (it provides
+  // `workspaces`, plural, in the client runtime), so deriving from cwd is the
+  // stable, throw-free seam — the proxy ctx rejects undeclared props.
+  const workspaceDir: string = process.cwd();
+  return { workspace_id: deriveWorkspaceId(workspaceDir), session_id: sessionId ?? 'default' };
 }
 
 export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
@@ -42,11 +45,22 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
     executablePath: config.executablePath,
     cdpUrl: config.cdpUrl,
     idleTtlMs: config.idleTtlMs,
-    workspaceDir: () => (ctx?.workspace?.dir ?? process.cwd()),
+    workspaceDir: () => process.cwd(),
   });
 
-  // Effect-scoped teardown: dispose kernels when the plugin fiber unloads.
-  ctx.addDispose?.(() => manager.dispose());
+  // Effect-scoped teardown: Cordis auto-mixes `effect` onto the ctx (no inject
+  // needed). Registering the disposer as an effect disposes the kernels when
+  // the plugin fiber unloads. (ctx.addDispose does not exist on the real
+  // runtime; the e2e fake ctx invented it.)
+  ctx.effect(() => {
+    return () => {
+      try {
+        manager.dispose();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, 'dsh-tool-browser: kernel manager');
 
   ctx.systemPrompt.section({
     name: 'tool:browser',
@@ -89,7 +103,7 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
         render: (_args, value) => {
           const v = value as ExecResult;
           // Spill oversized output into the active workspace dir (idempotent by content hash).
-          const spillDir = (ctx?.workspace?.dir ?? process.cwd()) as string | undefined;
+          const spillDir = process.cwd();
           return [{ type: 'text', text: renderExecResult(v, config.maxOutputChars, spillDir) }];
         },
         presentationMeta: (_args, value) => {
@@ -105,7 +119,10 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
       async execute(args, exec) {
         const code = String((args as { code?: unknown }).code ?? '');
         if (code.trim().length === 0) throw new Error('code must be a non-empty string');
-        const owner = ownerFor(ctx);
+        // Real session seam: the dispatch exec carries the calling agent, whose
+        // session.id is stable per conversation. `exec.agent` is undefined for
+        // the global view, in which case ownerFor falls back to 'default'.
+        const owner = ownerFor(exec?.agent?.session?.id);
         const result = await manager.execute(
           { requestId: randomUUID(), code, owner },
           // Headed deployments only: a handoff means a human takes over the
