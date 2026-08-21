@@ -15,8 +15,13 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const offline = process.env.E2E_OFFLINE === '1';
 
-// Suite files live next to this runner.
+// Suite files live next to this runner. The single-instance probe runs first:
+// it fails the suite if `setup-peers.sh` wasn't run (dist would resolve a
+// stale bundled dsh-tools instead of the harness's, or the defineTool identity
+// would differ). Locate the harness via `HARNESS_DSH=...` if auto-detect
+// (nvm/PATH) can't find it.
 const suites = [
+  ['single-instance', 'probe-single-instance.mjs'],
   ['minloop', 'e2e-minloop.ts'],
   ['integration', 'e2e-plugin-integration.ts'],
   ...(offline ? [] : [['network', 'e2e-network.ts']]),
