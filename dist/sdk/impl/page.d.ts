@@ -24,7 +24,11 @@ export declare class PageImpl implements Page {
     reload(): Promise<Record<string, unknown>>;
     /** Retain this page across response cycles for the current chat. */
     keep(): Promise<void>;
-    /** Wait for a fixed duration (capped at 30 s). */
+    /**
+     * Wait for a fixed duration (capped at 30 s). Cooperative with the run's
+     * abort signal: a budget abort cuts the wait short (AbortError) instead of
+     * letting it run to the cap.
+     */
     waitForTimeout(ms: number): Promise<void>;
     /** Wait for the page to reach a load state. */
     waitForLoadState(state?: 'load' | 'domcontentloaded' | 'networkidle', timeoutMs?: number): Promise<void>;

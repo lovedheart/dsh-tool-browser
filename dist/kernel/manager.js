@@ -91,7 +91,9 @@ export function createKernelManager(cfg) {
                 kernel.unpin();
             }
         }
-        const result = await kernel.execute(req);
+        // Attach the per-run abort signal (tool timeout / user cancel). An aborted
+        // run ends in a governed RETRYABLE error; the kernel + pages survive.
+        const result = await kernel.execute({ ...req, signal: opts?.signal });
         // Re-pin only when the caller opts in (headed deployments, where a human
         // genuinely takes over the browser); in headless mode handoff is an error
         // and there is nothing to hold open.

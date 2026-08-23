@@ -1,7 +1,8 @@
-// Strict verification for the dsh-tool-browser rc.8 fix. After setup-peers.sh:
+// Strict verification for the dsh-tool-browser single-instance fix.
+// After setup-peers.sh:
 //  (1) the identity-sensitive SDK peers (dsh-tools, dsh-system-prompt) must
-//      resolve from dist/ INTO the harness rc.8 — same package, same module
-//      instance (function identity) — NOT a stale bundled rc.6 real dir.
+//      resolve from dist/ INTO the harness — same package, same module
+//      instance (function identity), same version — NOT a stale bundled copy.
 //  (2) the version-synced leaf libs (schemastery, cosmokit) must resolve to the
 //      SAME version the harness runs (no drift), whether local or shared.
 // Run from the plugin dir with the v22 node:
@@ -73,17 +74,19 @@ function harnessVersion(name) {
   catch { return '?'; }
 }
 
-// (1) Identity-sensitive peers: must resolve INTO harness rc.8.
+// (1) Identity-sensitive peers: must resolve INTO the harness (NOT a stale
+// bundled copy) AND run the exact version the harness runs (no drift).
 for (const name of ['dsh-tools', 'dsh-system-prompt']) {
   const spec = `@deepseek-ai/${name}`;
   const resolvedEntry = realpathSync(reqFromDist.resolve(spec));
-  check(`${name}: dist resolves INTO harness rc.8`,
+  check(`${name}: dist resolves INTO harness`,
     resolvedEntry.startsWith(HARNESS_REAL + '/'), resolvedEntry);
-  check(`${name}: version is rc.8`, pkgVersionOf(resolvedEntry) === '0.1.0-rc.8', pkgVersionOf(resolvedEntry));
+  check(`${name}: version matches harness`, pkgVersionOf(resolvedEntry) === harnessVersion(name),
+    `dist=${pkgVersionOf(resolvedEntry)} harness=${harnessVersion(name)}`);
 }
 
 // (2) The CRITICAL single-instance identity check for dsh-tools. Two instances
-// (bundled rc.6 vs harness rc.8) would yield different function identities.
+// (a bundled copy vs the harness's) would yield different function identities.
 const distDshTools = reqFromDist('@deepseek-ai/dsh-tools');
 const harnessReq = createRequire(join(HARNESS_REAL, 'dsh-tools', 'package.json'));
 const harnessDshTools = harnessReq('@deepseek-ai/dsh-tools');

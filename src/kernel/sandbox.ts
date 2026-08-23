@@ -11,6 +11,7 @@
  */
 
 import vm from 'node:vm';
+import { setCurrentRunSignal } from './run-context.ts';
 
 /** A pending handoff recorded when the model calls `browser.handoff(...)`. */
 export interface HandoffSignal {
@@ -103,14 +104,25 @@ export class Sandbox {
    * IIFE so it can `await` and use a top-level `return`. Top-level assignments still
    * target the persistent context global object, so they persist across runs.
    * Errors propagate to the caller (converted via governance.toBrowserError).
+   *
+   * When `signal` is provided it is published as the current run signal for the
+   * duration of the run so SDK/backend operations can observe it cooperatively
+   * (see `run-context.ts`); on abort the run ends in a governed error and the
+   * session survives.
    */
-  async run(code: string): Promise<SandboxRunResult> {
+  async run(code: string, signal?: AbortSignal): Promise<SandboxRunResult> {
     this.stdoutBuf = '';
     this.handoff = undefined;
 
-    const wrapped = `(async () => {\n${code}\n})()`;
-    // No vm timeout: the tool layer enforces a cooperative per-call budget.
-    const result = await vm.runInContext(wrapped, this.context);
+    setCurrentRunSignal(signal);
+    let result: unknown;
+    try {
+      const wrapped = `(async () => {\n${code}\n})()`;
+      // No vm timeout: the tool layer enforces a cooperative per-call budget.
+      result = await vm.runInContext(wrapped, this.context);
+    } finally {
+      setCurrentRunSignal(undefined);
+    }
 
     return {
       value: stringifyValue(result),

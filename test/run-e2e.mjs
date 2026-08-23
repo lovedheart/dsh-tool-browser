@@ -6,7 +6,7 @@
 // any suite fails. Set E2E_OFFLINE=1 to skip the real-network suite.
 //
 // Usage:
-//   node test/run-e2e.mjs                 # minloop, integration, network, cdp, launch-opts
+//   node test/run-e2e.mjs                 # minloop, integration, abort-preserve, network, cdp, launch-opts
 //   E2E_OFFLINE=1 node test/run-e2e.mjs   # skip the network + launch-opts suites
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -24,6 +24,7 @@ const suites = [
   ['single-instance', 'probe-single-instance.mjs'],
   ['minloop', 'e2e-minloop.ts'],
   ['integration', 'e2e-plugin-integration.ts'],
+  ['abort-preserve', 'e2e-abort-preserve.ts'],
   ...(offline ? [] : [['network', 'e2e-network.ts']]),
   ['cdp', 'e2e-cdp.ts'],
   ...(offline ? [] : [['launch-opts', 'e2e-launch-opts.ts']]),

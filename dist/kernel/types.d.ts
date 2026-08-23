@@ -16,6 +16,13 @@ export interface ExecRequest {
     /** Module-level async JavaScript; may `return` a value or `print()`. */
     readonly code: string;
     readonly owner: Owner;
+    /**
+     * Abort signal for this run (tool timeout budget / user cancel). When it
+     * aborts, in-flight SDK operations reject with a governed RETRYABLE error
+     * and the run ends — the browser SESSION survives (pages + variables intact).
+     * See `kernel/run-control.ts`. Undefined = no cancellation (legacy paths).
+     */
+    readonly signal?: AbortSignal;
 }
 /** Outcome of one exec, mirroring QwenPaw ExecResult. */
 export interface ExecResult {
@@ -53,10 +60,13 @@ export interface KernelManager {
     /**
      * Execute one program. A resumed run on a pinned (handoff-pending) kernel
      * unpins it; if `opts.pinAfterHandoff` is set and this run ends in a handoff,
-     * the kernel is re-pinned against idle reclamation.
+     * the kernel is re-pinned against idle reclamation. `opts.signal` is the
+     * per-run abort signal (tool timeout / user cancel): aborting ends the run in
+     * a governed RETRYABLE error WITHOUT closing the browser session.
      */
     execute(req: ExecRequest, opts?: {
         pinAfterHandoff?: boolean;
+        signal?: AbortSignal;
     }): Promise<ExecResult>;
     /** Reclaim idle (unpinned) kernels older than idleTtlMs. */
     discardIdle(): Promise<void>;

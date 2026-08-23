@@ -10,6 +10,7 @@
  * worker_threads) to keep execution in-process.
  */
 import vm from 'node:vm';
+import { setCurrentRunSignal } from "./run-context.js";
 /**
  * Stringify a resolved value for the model. undefined → '', strings pass through,
  * objects → JSON, everything else → String(). Circular refs fall back to String().
@@ -79,13 +80,25 @@ export class Sandbox {
      * IIFE so it can `await` and use a top-level `return`. Top-level assignments still
      * target the persistent context global object, so they persist across runs.
      * Errors propagate to the caller (converted via governance.toBrowserError).
+     *
+     * When `signal` is provided it is published as the current run signal for the
+     * duration of the run so SDK/backend operations can observe it cooperatively
+     * (see `run-context.ts`); on abort the run ends in a governed error and the
+     * session survives.
      */
-    async run(code) {
+    async run(code, signal) {
         this.stdoutBuf = '';
         this.handoff = undefined;
-        const wrapped = `(async () => {\n${code}\n})()`;
-        // No vm timeout: the tool layer enforces a cooperative per-call budget.
-        const result = await vm.runInContext(wrapped, this.context);
+        setCurrentRunSignal(signal);
+        let result;
+        try {
+            const wrapped = `(async () => {\n${code}\n})()`;
+            // No vm timeout: the tool layer enforces a cooperative per-call budget.
+            result = await vm.runInContext(wrapped, this.context);
+        }
+        finally {
+            setCurrentRunSignal(undefined);
+        }
         return {
             value: stringifyValue(result),
             stdout: this.stdoutBuf,

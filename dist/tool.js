@@ -17,6 +17,10 @@ Work in a loop: read page state with await page.snapshot(), act through semantic
 locators, and re-snapshot to confirm. For login, captcha, or 2FA, call
 await browser.handoff(reason, instructions) and stop — never automate them.
 
+Long calls are cut short by the per-call timeout: the call returns a RETRYABLE
+error and your browser session (pages, state, variables) stays alive — retry
+with a shorter step.
+
 The complete, authoritative reference ships with the browser skill. The API surface
 is closed: anything not listed does not exist. Re-load the browser skill after
 context compaction.
@@ -118,14 +122,18 @@ export function registerBrowserTool(ctx, config) {
             // session.id is stable per conversation. `exec.agent` is undefined for
             // the global view, in which case ownerFor falls back to 'default'.
             const owner = ownerFor(exec?.agent?.session?.id);
-            const result = await manager.execute({ requestId: randomUUID(), code, owner }, 
-            // Headed deployments only: a handoff means a human takes over the
-            // browser, so hold the kernel against the idle TTL until the model
-            // resumes. (In headless mode handoff raises an error instead.)
-            { pinAfterHandoff: !resolveHeadless(config.headless) });
-            // Forward cooperative cancellation into the kernel on abort.
-            if (exec.signal?.aborted)
-                await manager.closeSession(owner);
+            const result = await manager.execute({ requestId: randomUUID(), code, owner }, {
+                // Headed deployments only: a handoff means a human takes over the
+                // browser, so hold the kernel against the idle TTL until the model
+                // resumes. (In headless mode handoff raises an error instead.)
+                pinAfterHandoff: !resolveHeadless(config.headless),
+                // Per-run cancellation: the host's tool timeoutMs / turn cancel
+                // aborts this signal. The run then ends in a governed RETRYABLE
+                // error and the browser SESSION survives — aborting a call must
+                // never destroy open pages or state (QwenPaw: kill the worker,
+                // keep the browser).
+                signal: exec.signal,
+            });
             return result;
         },
         presentCall: (args) => ({

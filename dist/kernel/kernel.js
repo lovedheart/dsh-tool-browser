@@ -4,6 +4,7 @@
  * injected) and projects the outcome into an {@link ExecResult}.
  */
 import { toBrowserError } from "../governance/teaching.js";
+import { AbortError, abortBrowserError, raceAbort } from "./run-control.js";
 /**
  * One stateful browser session. Holds the BackendSession + a persistent Sandbox so
  * variables and pages survive across `execute()` calls for the same owner.
@@ -33,8 +34,32 @@ export class KernelImpl {
                 error: toBrowserError(new Error('kernel closed')).toWire(),
             };
         }
+        // Already aborted when the run starts (e.g. the host cancelled the turn
+        // before dispatch reached us): do not execute the code at all — running
+        // a cancelled turn's script would only add side effects after the fact.
+        if (req.signal?.aborted) {
+            return {
+                requestId: req.requestId,
+                value: '',
+                stdout: '',
+                error: abortBrowserError(new AbortError()).toWire(),
+            };
+        }
         try {
-            const { value, stdout, handoff } = await this.sandbox.run(req.code);
+            // Run-level race: even if the model awaits something the SDK does not
+            // instrument, the budget abort ends the run promptly. The session is
+            // NEVER closed here — abort ends the run, not the browser (QwenPaw's
+            // "kill the worker, keep the browser" under the node:vm constraint).
+            //
+            // The inner sandbox promise outlives the race on abort (the vm script
+            // cannot be hard-killed; it ends at the next SDK boundary). Attach a
+            // no-op catch so its late rejection is never an unhandled rejection;
+            // the race is what surfaces the error to the caller.
+            const inner = this.sandbox.run(req.code, req.signal);
+            inner.catch(() => {
+                /* absorbed: raceAbort is the surface that reports this */
+            });
+            const { value, stdout, handoff } = (await raceAbort(inner, req.signal));
             return {
                 requestId: req.requestId,
                 value,
@@ -43,8 +68,11 @@ export class KernelImpl {
             };
         }
         catch (err) {
-            // Propagate governed errors; convert unknown throws via toBrowserError.
-            const be = toBrowserError(err);
+            // AbortError → governed RETRYABLE timeout teaching; other throws keep
+            // the existing governance path.
+            const be = err instanceof Error && err.name === 'BrowserAbortError'
+                ? abortBrowserError(err)
+                : toBrowserError(err);
             return {
                 requestId: req.requestId,
                 value: '',

@@ -58,6 +58,11 @@ export declare class Sandbox {
      * IIFE so it can `await` and use a top-level `return`. Top-level assignments still
      * target the persistent context global object, so they persist across runs.
      * Errors propagate to the caller (converted via governance.toBrowserError).
+     *
+     * When `signal` is provided it is published as the current run signal for the
+     * duration of the run so SDK/backend operations can observe it cooperatively
+     * (see `run-context.ts`); on abort the run ends in a governed error and the
+     * session survives.
      */
-    run(code: string): Promise<SandboxRunResult>;
+    run(code: string, signal?: AbortSignal): Promise<SandboxRunResult>;
 }

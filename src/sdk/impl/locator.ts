@@ -11,6 +11,19 @@ import type { LocatorView, LocatorFactory } from '../locator.ts';
 import type { BackendLocator } from '../../backend/ports.ts';
 import { BrowserError } from '../../governance/errors.ts';
 import { locatorLadderTeaching } from '../../governance/teaching.ts';
+import { raceAbort } from '../../kernel/run-control.ts';
+import { currentRunSignal } from '../../kernel/run-context.ts';
+
+/**
+ * Run a backend op under the current run's abort signal (cooperative cancel).
+ * On abort the op's wait rejects with an AbortError — the run ends in a
+ * governed RETRYABLE error and the model's continuation stops, while the
+ * browser session survives. Outside a run (tests) the signal is undefined and
+ * this is a pass-through.
+ */
+function op<T>(p: Promise<T>): Promise<T> {
+  return raceAbort(p, currentRunSignal()) as Promise<T>;
+}
 
 /**
  * If the backend rejects with a strict-mode violation, re-throw as a governed
@@ -89,129 +102,129 @@ export class LocatorViewImpl implements LocatorView {
 
   /** Number of matching elements. */
   async count(): Promise<number> {
-    return this.backend.count();
+    return op(this.backend.count());
   }
 
   /** Inner text of the (single) matched element. */
   async innerText(): Promise<string> {
-    return this.backend.innerText();
+    return op(this.backend.innerText());
   }
 
   /** Text content of the (single) matched element, or null. */
   async textContent(): Promise<string | null> {
-    return this.backend.textContent();
+    return op(this.backend.textContent());
   }
 
   /** Text content of all matched elements. */
   async allTextContents(): Promise<string[]> {
-    return this.backend.allTextContents();
+    return op(this.backend.allTextContents());
   }
 
   /** Value of an attribute on the (single) matched element, or null. */
   async getAttribute(name: string): Promise<string | null> {
-    return this.backend.getAttribute(name);
+    return op(this.backend.getAttribute(name));
   }
 
   /** Current input value of the (single) matched element. */
   async inputValue(): Promise<string> {
-    return this.backend.inputValue();
+    return op(this.backend.inputValue());
   }
 
   /** Whether the (single) matched element is visible. */
   async isVisible(): Promise<boolean> {
-    return this.backend.isVisible();
+    return op(this.backend.isVisible());
   }
 
   /** Whether the (single) matched element is enabled. */
   async isEnabled(): Promise<boolean> {
-    return this.backend.isEnabled();
+    return op(this.backend.isEnabled());
   }
 
   /** Viewport bounding box of the (single) matched element, or null. */
   async boundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
-    return this.backend.boundingBox();
+    return op(this.backend.boundingBox());
   }
 
   // ── act (await; returns { evidence }) ───────────────────────────────
 
   /** Click the (single) matched element. */
   async click(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.click());
+    return guardStrict(op(this.backend.click()));
   }
 
   /** Fill an input/textarea with a value. */
   async fill(value: string): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.fill(value));
+    return guardStrict(op(this.backend.fill(value)));
   }
 
   /** Type text character-by-character into an input. */
   async type(text: string): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.type(text));
+    return guardStrict(op(this.backend.type(text)));
   }
 
   /** Press a key while focused on the element. */
   async press(key: string): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.press(key));
+    return guardStrict(op(this.backend.press(key)));
   }
 
   /** Check a checkbox/radio. */
   async check(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.check());
+    return guardStrict(op(this.backend.check()));
   }
 
   /** Uncheck a checkbox/radio. */
   async uncheck(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.uncheck());
+    return guardStrict(op(this.backend.uncheck()));
   }
 
   /** Set checked state explicitly. */
   async setChecked(b: boolean): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.setChecked(b));
+    return guardStrict(op(this.backend.setChecked(b)));
   }
 
   /** Select option(s) in a <select>. */
   async selectOption(...values: string[]): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.selectOption(...values));
+    return guardStrict(op(this.backend.selectOption(...values)));
   }
 
   /** Hover over the element. */
   async hover(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.hover());
+    return guardStrict(op(this.backend.hover()));
   }
 
   /** Double-click the element. */
   async dblclick(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.dblclick());
+    return guardStrict(op(this.backend.dblclick()));
   }
 
   /** Scroll the element into view. */
   async scroll(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.scroll());
+    return guardStrict(op(this.backend.scroll()));
   }
 
   /** Focus the element. */
   async focus(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.focus());
+    return guardStrict(op(this.backend.focus()));
   }
 
   /** Blur (unfocus) the element. */
   async blur(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.blur());
+    return guardStrict(op(this.backend.blur()));
   }
 
   /** Clear an input's value. */
   async clear(): Promise<{ evidence: string }> {
-    return guardStrict(this.backend.clear());
+    return guardStrict(op(this.backend.clear()));
   }
 
   /** Wait for the element to reach a state. */
   async waitFor(state: 'visible' | 'hidden' | 'attached' | 'detached', timeoutMs?: number): Promise<void> {
-    return this.backend.waitFor(state, timeoutMs);
+    return op(this.backend.waitFor(state, timeoutMs));
   }
 
   /** Screenshot the element; returns { path }. */
   async screenshot(): Promise<{ path: string }> {
-    return this.backend.screenshot();
+    return op(this.backend.screenshot());
   }
 }
 

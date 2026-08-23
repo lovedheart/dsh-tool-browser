@@ -9,6 +9,13 @@ import type { Page } from '../page.ts';
 import { createPageFactory } from './page.ts';
 import type { BackendSession } from '../../backend/ports.ts';
 import { BrowserError } from '../../governance/errors.ts';
+import { raceAbort } from '../../kernel/run-control.ts';
+import { currentRunSignal } from '../../kernel/run-context.ts';
+
+/** Run a session op under the current run's abort signal (see locator.ts). */
+function op<T>(p: Promise<T>): Promise<T> {
+  return raceAbort(p, currentRunSignal()) as Promise<T>;
+}
 
 /** Concrete Browser bound to one BackendSession. */
 export class BrowserImpl implements Browser {
@@ -45,6 +52,8 @@ export class BrowserImpl implements Browser {
 
   /** Hand a step back to a human (captcha/login/2FA); the run stops here. */
   async handoff(reason: string, instructions?: string): Promise<{ status: 'handoff'; reason: string; instructions: string }> {
+    // An aborted run must not record a (false) handoff — abort the run instead.
+    currentRunSignal()?.throwIfAborted?.();
     if (this.session.isHeadless()) {
       throw new BrowserError({
         category: 'ASK_HUMAN',
@@ -72,29 +81,29 @@ export class BrowserImpl implements Browser {
 
   /** List open pages with url/title/active. */
   async pages(): Promise<PageRef[]> {
-    return this.session.pages();
+    return op(this.session.pages());
   }
 
   /** Open (or reuse active) page at url. */
   async open(url?: string): Promise<Page> {
-    const bp = await this.session.openPage(url);
+    const bp = await op(this.session.openPage(url));
     return this.pageFactory.create(bp);
   }
 
   /** Open a page retained for the chat lifetime. */
   async present(url?: string): Promise<Page> {
-    const bp = await this.session.presentPage(url);
+    const bp = await op(this.session.presentPage(url));
     return this.pageFactory.create(bp);
   }
 
   /** Make a page ref active for later operations. */
   async switchPage(page: PageRef): Promise<void> {
-    await this.session.switchPage(page.id);
+    await op(this.session.switchPage(page.id));
   }
 
   /** Close a page ref in this session. */
   async closePage(page: PageRef): Promise<void> {
-    await this.session.closePage(page.id);
+    await op(this.session.closePage(page.id));
   }
 }
 

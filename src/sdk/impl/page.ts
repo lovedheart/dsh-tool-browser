@@ -8,6 +8,13 @@ import type { InputSurface, Page, PageFactory } from '../page.ts';
 import type { LocatorView } from '../locator.ts';
 import { createLocatorFactory } from './locator.ts';
 import type { BackendPage, LocatorSpec } from '../../backend/ports.ts';
+import { raceAbort } from '../../kernel/run-control.ts';
+import { currentRunSignal } from '../../kernel/run-context.ts';
+
+/** Run a backend op under the current run's abort signal (see locator.ts). */
+function op<T>(p: Promise<T>): Promise<T> {
+  return raceAbort(p, currentRunSignal()) as Promise<T>;
+}
 
 /** Concrete Page bound to one BackendPage handle. */
 export class PageImpl implements Page {
@@ -24,16 +31,20 @@ export class PageImpl implements Page {
 
     const bp = backendPage;
     this.mouse = {
-      click: (x: number, y: number) => bp.input('mouse', 'click', { x, y }) as Promise<ActionEvidence>,
-      press: (key: string) => bp.input('mouse', 'press', { key }) as Promise<ActionEvidence>,
+      click: (x: number, y: number) =>
+        op(bp.input('mouse', 'click', { x, y })) as Promise<ActionEvidence>,
+      press: (key: string) =>
+        op(bp.input('mouse', 'press', { key })) as Promise<ActionEvidence>,
       wheel: (deltaX?: number, deltaY?: number) =>
-        bp.input('mouse', 'wheel', { delta_x: deltaX ?? 0, delta_y: deltaY ?? 0 }) as Promise<ActionEvidence>,
+        op(bp.input('mouse', 'wheel', { delta_x: deltaX ?? 0, delta_y: deltaY ?? 0 })) as Promise<ActionEvidence>,
     };
     this.keyboard = {
-      click: (x: number, y: number) => bp.input('keyboard', 'click', { x, y }) as Promise<ActionEvidence>,
-      press: (key: string) => bp.input('keyboard', 'press', { key }) as Promise<ActionEvidence>,
+      click: (x: number, y: number) =>
+        op(bp.input('keyboard', 'click', { x, y })) as Promise<ActionEvidence>,
+      press: (key: string) =>
+        op(bp.input('keyboard', 'press', { key })) as Promise<ActionEvidence>,
       wheel: (deltaX?: number, deltaY?: number) =>
-        bp.input('keyboard', 'wheel', { delta_x: deltaX ?? 0, delta_y: deltaY ?? 0 }) as Promise<ActionEvidence>,
+        op(bp.input('keyboard', 'wheel', { delta_x: deltaX ?? 0, delta_y: deltaY ?? 0 })) as Promise<ActionEvidence>,
     };
   }
 
@@ -41,22 +52,22 @@ export class PageImpl implements Page {
 
   /** Navigate to url. */
   async goto(url: string): Promise<Record<string, unknown>> {
-    return this.backend.goto(url);
+    return op(this.backend.goto(url));
   }
 
   /** Navigate back in history. */
   async goBack(): Promise<Record<string, unknown>> {
-    return this.backend.goBack();
+    return op(this.backend.goBack());
   }
 
   /** Navigate forward in history. */
   async goForward(): Promise<Record<string, unknown>> {
-    return this.backend.goForward();
+    return op(this.backend.goForward());
   }
 
   /** Reload the current page. */
   async reload(): Promise<Record<string, unknown>> {
-    return this.backend.reload();
+    return op(this.backend.reload());
   }
 
   /** Retain this page across response cycles for the current chat. */
@@ -66,31 +77,38 @@ export class PageImpl implements Page {
 
   // ── waiting ─────────────────────────────────────────────────────────
 
-  /** Wait for a fixed duration (capped at 30 s). */
+  /**
+   * Wait for a fixed duration (capped at 30 s). Cooperative with the run's
+   * abort signal: a budget abort cuts the wait short (AbortError) instead of
+   * letting it run to the cap.
+   */
   async waitForTimeout(ms: number): Promise<void> {
-    await new Promise((r) => setTimeout(r, Math.min(ms, 30_000)));
+    await raceAbort(
+      new Promise<void>((r) => setTimeout(r, Math.min(ms, 30_000))),
+      currentRunSignal(),
+    );
   }
 
   /** Wait for the page to reach a load state. */
   async waitForLoadState(state?: 'load' | 'domcontentloaded' | 'networkidle', timeoutMs?: number): Promise<void> {
-    await this.backend.waitForLoadState(state ?? 'load', timeoutMs);
+    await op(this.backend.waitForLoadState(state ?? 'load', timeoutMs));
   }
 
   // ── perception ──────────────────────────────────────────────────────
 
   /** Capture a screenshot; returns { path }. */
   async screenshot(): Promise<{ path: string }> {
-    return this.backend.screenshot();
+    return op(this.backend.screenshot());
   }
 
   /** Perceive page text (+ optional query match count). */
   async snapshot(query?: string): Promise<Observation> {
-    return this.backend.snapshot(query);
+    return op(this.backend.snapshot(query));
   }
 
   /** Report current url/title/load_state. */
   async currentSurface(): Promise<CurrentSurface> {
-    return this.backend.currentSurface();
+    return op(this.backend.currentSurface());
   }
 
   // ── locating (semantic first) ───────────────────────────────────────

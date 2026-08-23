@@ -114,7 +114,7 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
 
   async function execute(
     req: ExecRequest,
-    opts?: { pinAfterHandoff?: boolean },
+    opts?: { pinAfterHandoff?: boolean; signal?: AbortSignal },
   ): Promise<ExecResult> {
     // Reclaim idle kernels first (mirrors QwenPaw BrowserKernelManager.execute).
     await discardIdle();
@@ -131,7 +131,9 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
         kernel.unpin();
       }
     }
-    const result = await kernel.execute(req);
+    // Attach the per-run abort signal (tool timeout / user cancel). An aborted
+    // run ends in a governed RETRYABLE error; the kernel + pages survive.
+    const result = await kernel.execute({ ...req, signal: opts?.signal });
     // Re-pin only when the caller opts in (headed deployments, where a human
     // genuinely takes over the browser); in headless mode handoff is an error
     // and there is nothing to hold open.

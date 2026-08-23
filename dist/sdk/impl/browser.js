@@ -4,6 +4,12 @@
  */
 import { createPageFactory } from "./page.js";
 import { BrowserError } from "../../governance/errors.js";
+import { raceAbort } from "../../kernel/run-control.js";
+import { currentRunSignal } from "../../kernel/run-context.js";
+/** Run a session op under the current run's abort signal (see locator.ts). */
+function op(p) {
+    return raceAbort(p, currentRunSignal());
+}
 /** Concrete Browser bound to one BackendSession. */
 export class BrowserImpl {
     session;
@@ -35,6 +41,8 @@ export class BrowserImpl {
     }
     /** Hand a step back to a human (captcha/login/2FA); the run stops here. */
     async handoff(reason, instructions) {
+        // An aborted run must not record a (false) handoff — abort the run instead.
+        currentRunSignal()?.throwIfAborted?.();
         if (this.session.isHeadless()) {
             throw new BrowserError({
                 category: 'ASK_HUMAN',
@@ -60,25 +68,25 @@ export class BrowserImpl {
     }
     /** List open pages with url/title/active. */
     async pages() {
-        return this.session.pages();
+        return op(this.session.pages());
     }
     /** Open (or reuse active) page at url. */
     async open(url) {
-        const bp = await this.session.openPage(url);
+        const bp = await op(this.session.openPage(url));
         return this.pageFactory.create(bp);
     }
     /** Open a page retained for the chat lifetime. */
     async present(url) {
-        const bp = await this.session.presentPage(url);
+        const bp = await op(this.session.presentPage(url));
         return this.pageFactory.create(bp);
     }
     /** Make a page ref active for later operations. */
     async switchPage(page) {
-        await this.session.switchPage(page.id);
+        await op(this.session.switchPage(page.id));
     }
     /** Close a page ref in this session. */
     async closePage(page) {
-        await this.session.closePage(page.id);
+        await op(this.session.closePage(page.id));
     }
 }
 /** Factory the kernel uses to bind a Browser to a live kernel/backend session. */

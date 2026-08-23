@@ -111,6 +111,16 @@ For captcha / login / 2FA or any human-only step:
 (Requires a headed session; in headless mode handoff raises an error telling you
 to enable headed mode.)
 
+## Long calls & timeouts
+
+Each call has a per-call timeout budget. If your script runs too long, the call
+is cut short and returns a `[RETRYABLE]` error — **your browser session is NOT
+destroyed**: open pages, filled forms, and your `browser`/`page`/global
+variables all survive, so the next call continues where you left off. When you
+see this error, retry with a smaller step (one navigation + one action, or a
+shorter `waitForTimeout` / locator `waitFor` timeout) rather than repeating the
+whole script.
+
 ## Backend notes
 
 - `playwright` backend: managed Chromium, true strict-mode accessible names.
