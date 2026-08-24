@@ -3,7 +3,7 @@
  * Ported from QwenPaw's `browser/sdk/facade.py` Browser class.
  */
 
-import type { Identity, Owner, PageRef, SessionStatus } from '../contracts.ts';
+import type { Owner, PageRef, SessionStatus } from '../contracts.ts';
 import type { Browser, BrowserFactory, BrowserHooks } from '../facade.ts';
 import type { Page } from '../page.ts';
 import { createPageFactory } from './page.ts';
@@ -31,8 +31,8 @@ export class BrowserImpl implements Browser {
     this.onHandoff = hooks?.onHandoff;
   }
 
-  /** Connect as an identity. The session is pre-connected by the kernel. */
-  async connect(_opts?: { identity?: Identity }): Promise<Browser> {
+  /** Connect. The session is pre-connected by the kernel; this is a no-op check. */
+  async connect(): Promise<Browser> {
     if (!this.connected) {
       throw new BrowserError({
         category: 'FATAL',

@@ -12,14 +12,12 @@
  *   obs = await page.snapshot()
  *   await page.getByRole("button", { name: "Go" }).click()
  */
-import type { Identity, Owner, PageRef, SessionStatus } from './contracts.ts';
+import type { Owner, PageRef, SessionStatus } from './contracts.ts';
 import type { Page } from './page.ts';
-/** Orchestration-only surface: session, identity, multi-page, handoff. */
+/** Orchestration-only surface: session, multi-page, handoff. */
 export interface Browser {
-    /** Connect as an identity. Reuses an active session when compatible. */
-    connect(opts?: {
-        identity?: Identity;
-    }): Promise<Browser>;
+    /** Connect (once per session; the kernel pre-connects the session). */
+    connect(): Promise<Browser>;
     /** Close this session's browser and release its context. */
     close(): Promise<void>;
     /** Hand a step back to a human (captcha/login/2FA); the run stops here. */

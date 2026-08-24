@@ -56,7 +56,6 @@ export function createKernelManager(cfg) {
             proxy: cfg.proxy,
             viewport: cfg.viewport,
             userDataDir: cfg.userDataDir,
-            identity: 'auto',
             workspaceDir: cfg.workspaceDir(),
         });
         // The browser and sandbox reference each other (sandbox needs the browser

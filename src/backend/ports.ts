@@ -111,12 +111,9 @@ export interface BackendOptions {
   readonly viewport?: { width: number; height: number };
   /** Persistent profile dir (playwright backend only; enables persistent context). */
   readonly userDataDir?: string;
-  readonly identity: IdentityLike;
   /** Workspace dir where screenshots / overflow output are written. */
   readonly workspaceDir: string;
 }
-
-type IdentityLike = 'auto' | 'user' | 'avatar' | 'guest';
 
 /** A connected backend session owning pages for one Owner. */
 export interface BackendSession {

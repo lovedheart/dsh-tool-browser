@@ -22,8 +22,8 @@ export class BrowserImpl {
         this.owner = hooks?.owner ?? { workspace_id: '', session_id: '' };
         this.onHandoff = hooks?.onHandoff;
     }
-    /** Connect as an identity. The session is pre-connected by the kernel. */
-    async connect(_opts) {
+    /** Connect. The session is pre-connected by the kernel; this is a no-op check. */
+    async connect() {
         if (!this.connected) {
             throw new BrowserError({
                 category: 'FATAL',

@@ -2,7 +2,7 @@
  * Concrete Browser implementation — wraps a BackendSession.
  * Ported from QwenPaw's `browser/sdk/facade.py` Browser class.
  */
-import type { Identity, PageRef, SessionStatus } from '../contracts.ts';
+import type { PageRef, SessionStatus } from '../contracts.ts';
 import type { Browser, BrowserFactory, BrowserHooks } from '../facade.ts';
 import type { Page } from '../page.ts';
 import type { BackendSession } from '../../backend/ports.ts';
@@ -14,10 +14,8 @@ export declare class BrowserImpl implements Browser {
     private connected;
     private onHandoff;
     constructor(session: BackendSession, hooks?: BrowserHooks);
-    /** Connect as an identity. The session is pre-connected by the kernel. */
-    connect(_opts?: {
-        identity?: Identity;
-    }): Promise<Browser>;
+    /** Connect. The session is pre-connected by the kernel; this is a no-op check. */
+    connect(): Promise<Browser>;
     /** Close this session's browser and release its context. */
     close(): Promise<void>;
     /** Hand a step back to a human (captcha/login/2FA); the run stops here. */

@@ -90,7 +90,6 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
       proxy: cfg.proxy,
       viewport: cfg.viewport,
       userDataDir: cfg.userDataDir,
-      identity: 'auto',
       workspaceDir: cfg.workspaceDir(),
     });
 

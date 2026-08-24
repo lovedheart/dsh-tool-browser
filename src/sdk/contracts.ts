@@ -49,9 +49,6 @@ export interface PageRef {
   readonly active: boolean;
 }
 
-/** Identity a browser session connects as (QwenPaw `connect(identity=...)`). */
-export type Identity = 'auto' | 'user' | 'avatar' | 'guest';
-
 /** Result of `browser.session_status()`. */
 export interface SessionStatus {
   readonly owner: { workspace_id: string; session_id: string };

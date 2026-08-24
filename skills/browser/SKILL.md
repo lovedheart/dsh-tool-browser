@@ -27,7 +27,7 @@ the session was reset, re-run `await Browser.connect()`.
 
 | method | returns |
 |---|---|
-| `await Browser.connect({identity}?)` | `Browser` (identity: 'auto'\|'user'\|'avatar'\|'guest') |
+| `await Browser.connect()` | `Browser` — connect once; reused all session |
 | `await browser.close()` | none — release this session's browser |
 | `await browser.open(url?)` | `Page` — reuse active page or create one |
 | `await browser.present(url?)` | `Page` — retained for the chat lifetime |
