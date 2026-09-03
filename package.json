@@ -1,7 +1,7 @@
 {
   "name": "dsh-tool-browser",
   "description": "Model-facing browser automation tool (browser) for DeepSeek Harness: drive a live Playwright/Chrome browser by writing async JavaScript against a stateful Browser SDK, ported from QwenPaw's Unified Browser SDK.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

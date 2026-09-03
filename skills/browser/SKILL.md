@@ -129,3 +129,11 @@ whole script.
   logins, storage) is shared with the user's profile. Do not rely on session-level
   identity isolation there. Accessible-name matching is a heuristic, so strict-mode
   errors are more likely; narrow with `filter({hasText})` or a more specific role.
+- `chrome-extension` backend: same real-browser semantics as `chrome`, but attached
+  through the DSH Browser extension (no debug port, user never restarts Chrome).
+  Locator matching is DOM-heuristic (same as `chrome`). If errors say the extension
+  is "not connected", the user's Chrome is closed or the extension is disabled —
+  ask the user, don't retry in a loop. After a Chrome restart, surviving tabs keep
+  working; lost pages raise a "reopen" error — just `browser.open(url)` again.
+  `browser.close()` closes only tabs this session created; the user's tabs are
+  never touched.

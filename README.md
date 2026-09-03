@@ -47,10 +47,13 @@ in your profile's `cordis.patch.yml`:
 - replace:
     - id: tool-browser
       config:
-        backend: playwright     # or 'chrome'
+        backend: playwright     # or 'chrome' (CDP port) or 'chrome-extension'
         headless: false         # required for handoff(); 'auto' = headless in a
                                 # container / when no display server is found
         cdpUrl: http://127.0.0.1:9222   # only for backend=chrome
+        closeOrphanTabs: false  # only for backend=chrome-extension: auto-close
+                                # DSH-created tabs whose owner is gone on
+                                # reconnect (default: flag only, never close)
         args: ['--no-sandbox']  # extra Chromium launch flags (playwright only)
         proxy: http://127.0.0.1:7890    # proxy server (playwright only)
         viewport: { width: 1280, height: 800 }  # new contexts (playwright only)
@@ -59,6 +62,32 @@ in your profile's `cordis.patch.yml`:
         idleTtlMs: 600000
         maxOutputChars: 100000
 ```
+
+### Chrome-extension backend (drive the user's real Chrome, no debug flag)
+
+`backend: chrome-extension` attaches to the user's on-screen Chrome through the
+bundled MV3 extension (chrome.debugger) over Native Messaging — no
+`--remote-debugging-port` needed, no browser is launched, `isHeadless()` is
+always false and close() only closes tabs this session created.
+
+One-time setup on the user's machine:
+
+1. `curl -X POST http://127.0.0.1:<dsh-port>/api/plugins/tool-browser/chrome/setup`
+   (or call `runSetup()`); writes the NM host manifest, the
+   `~/.dsh/bin/dsh-nm-host` launcher, the bridge token, and copies the
+   extension to `~/.dsh/chrome-extension/dsh-chrome`.
+2. In `chrome://extensions` → Developer mode → **Load unpacked** →
+   `~/.dsh/chrome-extension/dsh-chrome`. The extension connects automatically
+   whenever Chrome runs (no server restart needed; it reconnects with backoff).
+3. Status: `GET /api/plugins/tool-browser/chrome/status` (install state +
+   bridge connection + last hello info).
+
+Transport: WS upgrade at `/api/plugins/tool-browser/ws` (Bearer token from
+`~/.dsh/nm-bridge.json`, loopback only) ⇄ native host (dumb pipe, 4-byte LE
+framing) ⇄ extension. Protocol v2: JSON-RPC 2.0 + hello/hello_ack contract
+check. Reconnect resilience: on (re)connect the core reconciles page→tab maps
+(surviving tabs stay usable, lost pages raise a governed "reopen" error),
+DSH-created tabs without a live owner are flagged as orphans.
 
 ## Layout
 
