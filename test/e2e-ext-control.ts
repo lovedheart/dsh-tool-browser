@@ -163,7 +163,7 @@ const pages = await manager.execute({
   requestId: 'p4-4',
   owner: { workspace_id: 'p4-ws', session_id: 'p4-sess' },
   code: `
-    p2 = await browser.presentPage("data:text/html,<i>two</i>");
+    p2 = await browser.present("data:text/html,<i>two</i>");
     list = await browser.pages();
     return { n: list.length, bothActive: list.filter(x=>x.active).length === 1 };
   `,
@@ -176,8 +176,9 @@ const closed = await manager.execute({
   owner: { workspace_id: 'p4-ws', session_id: 'p4-sess' },
   code: `
     list = await browser.pages();
-    await browser.closePage(list[0].id);
-    try { await list[0].snapshot(); return { err: 'none' }; }
+    victim = list.find(x => !x.active);
+    await browser.closePage(victim);
+    try { await browser.switchPage(victim); return { err: 'none' }; }
     catch (e) { return { err: String(e && e.category ? e.category + '/' + e.cause : e).slice(0,80) }; }
   `,
 });

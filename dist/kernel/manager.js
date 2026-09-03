@@ -48,7 +48,10 @@ export function createKernelManager(cfg) {
             link = (await import("../backend/chrome-cdp.js")).createChromeControlLink();
         }
         else if (cfg.backend === 'chrome-extension') {
-            link = (await import("../backend/chrome-extension.js")).createChromeExtensionControlLink();
+            link = (await import("../backend/chrome-extension.js")).createChromeExtensionControlLink({
+                ownerId: owner.session_id,
+                workspaceId: owner.workspace_id,
+            });
         }
         else {
             link = (await import("../backend/playwright.js")).createPlaywrightControlLink();

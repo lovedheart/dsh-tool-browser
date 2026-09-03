@@ -10,7 +10,7 @@
 /** Coarse failure class; stable string values are model-visible in render text. */
 export type ErrorCategory = 'RETRYABLE' | 'FATAL' | 'ASK_HUMAN' | 'API_MISUSE' | 'INTERNAL';
 /** Fine-grained cause tag for logging/diagnostics (not always model-visible). */
-export type ErrorCause = 'bridge_disconnected' | 'api_misuse' | 'navigation_failed' | 'locator_not_found' | 'strict_mode_violation' | 'timeout' | 'headless_handoff' | 'config_invalid' | 'internal';
+export type ErrorCause = 'bridge_disconnected' | 'api_misuse' | 'navigation_failed' | 'locator_not_found' | 'strict_mode_violation' | 'timeout' | 'state_stale' | 'headless_handoff' | 'config_invalid' | 'internal';
 export interface BrowserErrorFields {
     /** Stable category (see {@link ErrorCategory}). */
     readonly category: ErrorCategory;

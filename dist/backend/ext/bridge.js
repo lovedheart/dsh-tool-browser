@@ -256,15 +256,18 @@ function contractMismatches(contract) {
 }
 function wireErrorCategory(err) {
     const m = String(err.message ?? '');
-    // Extension-side tab staleness maps to retry (re-attach next call).
-    if (/no tab with id|tab (?:was )?closed|debugger attach/i.test(m))
+    // Extension-side tab staleness maps to retry (re-attach next call);
+    // protected-tab refusals (chrome:// etc.) are fatal misuse of the handle.
+    if (/no tab with id|tab (?:was )?closed|Cannot attach|cross-origin/i.test(m))
         return 'RETRYABLE';
+    if (/protected|not attachable/i.test(m))
+        return 'FATAL';
     return 'FATAL';
 }
 function wireErrorCause(err) {
     const m = String(err.message ?? '');
     if (/no tab with id|tab (?:was )?closed/.test(m))
-        return 'bridge_disconnected';
+        return 'state_stale';
     return 'internal';
 }
 function timingSafeEqualStr(a, b) {

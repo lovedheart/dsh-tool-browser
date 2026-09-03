@@ -32,10 +32,10 @@ try {
 } catch (e) {
   err = e as Record<string, string>;
 }
-check('connect yields a governed error (stub, pre-P4)', err !== undefined, String(err));
+check('connect yields a governed error', err !== undefined, String(err));
 check(
-  'error is governed FATAL/config_invalid',
-  err?.['category'] === 'FATAL' && err?.['cause'] === 'config_invalid',
+  'error is governed RETRYABLE/bridge_disconnected (extension not connected)',
+  err?.['category'] === 'RETRYABLE' && err?.['cause'] === 'bridge_disconnected',
   `${err?.['name']}/${err?.['category']}/${err?.['cause']}`,
 );
 // The other backends still dispatch (config enum didn't break them).

@@ -12,5 +12,5 @@ export declare function registerBrowserTool(ctx: any, config: BrowserToolConfig)
 export declare const extensionBridgePlugin: {
     name: string;
     inject: string[];
-    apply(ctx: any, _config: BrowserToolConfig): void;
+    apply(ctx: any, config: BrowserToolConfig): void;
 };

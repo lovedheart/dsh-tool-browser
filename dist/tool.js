@@ -167,15 +167,17 @@ export function registerBrowserTool(ctx, config) {
 export const extensionBridgePlugin = {
     name: 'tool-browser-extension-bridge',
     inject: ['webServer'],
-    apply(ctx, _config) {
-        void mountExtensionBridge(ctx);
+    apply(ctx, config) {
+        void mountExtensionBridge(ctx, config.closeOrphanTabs);
     },
 };
-async function mountExtensionBridge(ctx) {
-    const [bridgeMod, setupMod] = await Promise.all([
+async function mountExtensionBridge(ctx, closeOrphanTabs = false) {
+    const [bridgeMod, setupMod, resilienceMod] = await Promise.all([
         import("./backend/ext/bridge.js"),
         import("./backend/ext/setup.js"),
+        import("./backend/ext/resilience.js"),
     ]);
+    resilienceMod.configureResilience({ closeOrphanTabs });
     const { mountBridge, BRIDGE_UPGRADE_PATH } = bridgeMod;
     const { installStatus, runSetup } = setupMod;
     const disposers = [mountBridge(ctx.webServer)];

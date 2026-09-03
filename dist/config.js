@@ -68,4 +68,10 @@ export const Config = z.object({
     idleTtlMs: z.number().default(600_000),
     /** Cap on rendered tool output before overflow spill to a workspace file. */
     maxOutputChars: z.number().default(100_000),
+    /**
+     * chrome-extension backend: auto-close Chrome tabs created by DSH whose
+     * owning session is gone when the bridge reconnects. Default false —
+     * orphans are only flagged (safer for the user's browsing).
+     */
+    closeOrphanTabs: z.boolean().default(false),
 });

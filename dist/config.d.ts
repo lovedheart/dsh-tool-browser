@@ -61,6 +61,12 @@ export declare const Config: z<Schemastery.ObjectS<{
     idleTtlMs: z<number, number>;
     /** Cap on rendered tool output before overflow spill to a workspace file. */
     maxOutputChars: z<number, number>;
+    /**
+     * chrome-extension backend: auto-close Chrome tabs created by DSH whose
+     * owning session is gone when the bridge reconnects. Default false —
+     * orphans are only flagged (safer for the user's browsing).
+     */
+    closeOrphanTabs: z<boolean, boolean>;
 }>, Schemastery.ObjectT<{
     /** Register the browser tool. */
     enabled: z<boolean, boolean>;
@@ -115,6 +121,12 @@ export declare const Config: z<Schemastery.ObjectS<{
     idleTtlMs: z<number, number>;
     /** Cap on rendered tool output before overflow spill to a workspace file. */
     maxOutputChars: z<number, number>;
+    /**
+     * chrome-extension backend: auto-close Chrome tabs created by DSH whose
+     * owning session is gone when the bridge reconnects. Default false —
+     * orphans are only flagged (safer for the user's browsing).
+     */
+    closeOrphanTabs: z<boolean, boolean>;
 }>>;
 export type BrowserToolConfig = {
     enabled: boolean;
@@ -133,4 +145,5 @@ export type BrowserToolConfig = {
     execTimeoutMs: number;
     idleTtlMs: number;
     maxOutputChars: number;
+    closeOrphanTabs: boolean;
 };

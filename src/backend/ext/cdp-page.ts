@@ -9,7 +9,7 @@ import { BrowserError } from '../../governance/errors.ts';
 import type { BackendLocator, BackendPage, LocatorSpec } from '../ports.ts';
 import type { CurrentSurface, Observation } from '../../sdk/contracts.ts';
 import type { ExtSession } from '../chrome-extension.ts';
-import { buildLocatorExpression, ACT, READ } from './cdp-inject.ts';
+import { buildLocatorExpression, buildActionExpression, buildReadExpression } from './cdp-inject.ts';
 
 const KEY_CODEMAP: Record<string, { windows: { keyCode: number; code: string }; text?: string }> = {
   Enter: { windows: { keyCode: 13, code: 'Enter' }, text: '\r' },
@@ -232,17 +232,18 @@ class ExtLocator implements BackendLocator {
     return buildLocatorExpression(this.spec, this.base);
   }
 
-  private async runAct(fragment: string): Promise<{ evidence: string }> {
-    const wrapped = `(function(){const el=${this.expr()};if(!el)throw new Error('LOCATOR_NOT_FOUND');return (${fragment})(el);})()`;
+  private async runAct<T = { evidence: string }>(verb: string, arg?: unknown): Promise<T> {
     return this.guard(async () => {
-      const evidence = await this.session.evaluateJson<string>(this.pageId, wrapped, true);
-      return { evidence: String(evidence) };
+      const out = await this.session.evaluateJson<string>(this.pageId, buildActionExpression(this.spec, verb, arg), true);
+      return JSON.parse(String(out)) as T;
     });
   }
 
-  private async runRead<T>(fragment: string, all = false): Promise<T> {
-    const wrapped = `(function(){const __el=${this.expr()};if(!__el&&!${all})throw new Error('LOCATOR_NOT_FOUND');return (${fragment})(__el);})()`;
-    return this.guard(() => this.session.evaluateJson<T>(this.pageId, wrapped, true));
+  private async runRead<T>(verb: string, arg?: unknown): Promise<T> {
+    return this.guard(async () => {
+      const out = await this.session.evaluateJson<string>(this.pageId, buildReadExpression(this.spec, verb, arg), true);
+      return JSON.parse(String(out)) as T;
+    });
   }
 
   private async guard<T>(fn: () => Promise<T>): Promise<T> {
@@ -263,75 +264,75 @@ class ExtLocator implements BackendLocator {
 
   // -- read ---------------------------------------------------------------
   count(): Promise<number> {
-    return this.runRead<number>(READ.count, true);
+    return this.runRead<number>('count');
   }
   innerText(): Promise<string> {
-    return this.runRead<string>(READ.innerText);
+    return this.runRead<string>('innerText');
   }
   textContent(): Promise<string | null> {
-    return this.runRead<string | null>(READ.textContent);
+    return this.runRead<string | null>('textContent');
   }
   allTextContents(): Promise<string[]> {
-    return this.runRead<string[]>(READ.allTextContents, true);
+    return this.runRead<string[]>('allTextContents');
   }
   getAttribute(name: string): Promise<string | null> {
-    return this.runRead<string | null>(READ.getAttribute(name));
+    return this.runRead<string | null>('getAttribute', name);
   }
   inputValue(): Promise<string> {
-    return this.runRead<string>(READ.inputValue);
+    return this.runRead<string>('inputValue');
   }
   isVisible(): Promise<boolean> {
-    return this.runRead<boolean>(READ.isVisible, true);
+    return this.runRead<boolean>('isVisible');
   }
   isEnabled(): Promise<boolean> {
-    return this.runRead<boolean>(READ.isEnabled, true);
+    return this.runRead<boolean>('isEnabled');
   }
   boundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
-    return this.runRead(READ.boundingBox, true);
+    return this.runRead('boundingBox');
   }
 
   // -- act ------------------------------------------------------------------
   click(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.click);
+    return this.runAct('click');
   }
   fill(value: string): Promise<{ evidence: string }> {
-    return this.runAct(ACT.fill(value));
+    return this.runAct('fill', value);
   }
   type(text: string): Promise<{ evidence: string }> {
-    return this.runAct(ACT.type(text));
+    return this.runAct('type', text);
   }
   press(key: string): Promise<{ evidence: string }> {
-    return this.runAct(ACT.press(key));
+    return this.runAct('press', key);
   }
   check(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.setChecked(true));
+    return this.runAct('setChecked', true);
   }
   uncheck(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.setChecked(false));
+    return this.runAct('setChecked', false);
   }
   setChecked(b: boolean): Promise<{ evidence: string }> {
-    return this.runAct(ACT.setChecked(b));
+    return this.runAct('setChecked', b);
   }
   selectOption(...values: string[]): Promise<{ evidence: string }> {
-    return this.runAct(ACT.selectOption(values));
+    return this.runAct('selectOption', values);
   }
   hover(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.hover);
+    return this.runAct('hover');
   }
   dblclick(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.dblclick);
+    return this.runAct('dblclick');
   }
   scroll(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.scroll);
+    return this.runAct('scroll');
   }
   focus(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.focus);
+    return this.runAct('focus');
   }
   blur(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.blur);
+    return this.runAct('blur');
   }
   clear(): Promise<{ evidence: string }> {
-    return this.runAct(ACT.clear);
+    return this.runAct('clear');
   }
   waitFor(state: 'visible' | 'hidden' | 'attached' | 'detached', timeoutMs = 5000): Promise<void> {
     return this.guard(async () => {

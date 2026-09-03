@@ -54,6 +54,7 @@ const config: BrowserToolConfig = {
   cdpUrl: undefined,
   args: [],
   execTimeoutMs: 120_000,
+  closeOrphanTabs: false,
   idleTtlMs: 60_000,
   maxOutputChars: 100_000,
 };

@@ -25,7 +25,7 @@ import type {
 } from './ports.ts';
 import type { CurrentSurface, Observation, PageRef } from '../sdk/contracts.ts';
 import { nmBridge } from './ext/bridge.ts';
-import { registerSession, unregisterSession } from './ext/resilience.ts';
+import { registerSession, unregisterSession, needsReopenError } from './ext/resilience.ts';
 import { ExtPage } from './ext/cdp-page.ts';
 import type { Owner } from '../sdk/contracts.ts';
 
