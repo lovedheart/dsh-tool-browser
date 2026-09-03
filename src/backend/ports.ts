@@ -94,7 +94,7 @@ export interface LocatorSpec {
 
 /** Launch/connect options for a backend. */
 export interface BackendOptions {
-  readonly backend: 'playwright' | 'chrome';
+  readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
   /**
    * Already-resolved headless flag. Callers (the KernelManager) resolve a
    * config-level 'auto' to a concrete boolean before constructing this, so the

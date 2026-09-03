@@ -27,6 +27,7 @@ const suites = [
   ['abort-preserve', 'e2e-abort-preserve.ts'],
   ...(offline ? [] : [['network', 'e2e-network.ts']]),
   ['cdp', 'e2e-cdp.ts'],
+  ['ext-seam', 'e2e-ext-seam.ts'],
   ...(offline ? [] : [['launch-opts', 'e2e-launch-opts.ts']]),
 ];
 

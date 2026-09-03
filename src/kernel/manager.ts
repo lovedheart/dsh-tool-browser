@@ -11,6 +11,7 @@
 import { existsSync } from 'node:fs';
 import type { Owner } from '../sdk/contracts.ts';
 import type { BrowserHooks } from '../sdk/facade.ts';
+import type { ControlLink } from '../backend/ports.ts';
 import type { ExecRequest, ExecResult, Kernel, KernelManager } from './types.ts';
 import { KernelImpl } from './kernel.ts';
 import { Sandbox } from './sandbox.ts';
@@ -29,7 +30,7 @@ export function resolveHeadless(value: boolean | 'auto'): boolean {
 
 /** Configuration for {@link createKernelManager}. */
 export interface ManagerConfig {
-  readonly backend: 'playwright' | 'chrome';
+  readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
   /** true | false | 'auto' — 'auto' is resolved at connect time. */
   readonly headless: boolean | 'auto';
   readonly executablePath?: string;
@@ -77,9 +78,14 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     // before those modules are present/installed.
     const { createBrowserFactory } = await import('../sdk/impl/browser.ts');
 
-    const link = cfg.backend === 'chrome'
-      ? (await import('../backend/chrome-cdp.ts')).createChromeControlLink()
-      : (await import('../backend/playwright.ts')).createPlaywrightControlLink();
+    let link: ControlLink;
+    if (cfg.backend === 'chrome') {
+      link = (await import('../backend/chrome-cdp.ts')).createChromeControlLink();
+    } else if (cfg.backend === 'chrome-extension') {
+      link = (await import('../backend/chrome-extension.ts')).createChromeExtensionControlLink();
+    } else {
+      link = (await import('../backend/playwright.ts')).createPlaywrightControlLink();
+    }
     const headless = resolveHeadless(cfg.headless);
     const session = await link.connect({
       backend: cfg.backend,
