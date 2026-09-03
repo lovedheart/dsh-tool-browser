@@ -24,6 +24,7 @@ export type ErrorCause =
   | 'locator_not_found'
   | 'strict_mode_violation'
   | 'timeout'
+  | 'state_stale' // a page/tab/session handle no longer exists (QwenPaw parity)
   | 'headless_handoff'
   | 'config_invalid'
   | 'internal';
