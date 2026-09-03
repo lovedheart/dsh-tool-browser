@@ -51,7 +51,7 @@ function keyToCdp(key: string): { type: string; keyCode: number; code: string; t
 export class ExtPage implements BackendPage {
   constructor(private readonly session: ExtSession, readonly id: string) {}
 
-  private cdp<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  cdp<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     return this.session.cdp<T>(this.id, method, params);
   }
 

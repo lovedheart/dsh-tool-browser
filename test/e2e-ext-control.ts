@@ -66,7 +66,7 @@ const token = JSON.parse(readFileSync(join(home, 'nm-bridge.json'), 'utf8')).tok
 
 // fake extension process (drives real chromium via CDP) ------------------------
 const ext = spawn(process.execPath, ['--import', 'tsx', FAKE_EXT_TS], {
-  stdio: ['ignore', 'pipe', 'pipe'],
+  stdio: ['pipe', 'pipe', 'pipe'],
   env: { ...process.env, FAKE_EXT_PORT: '9444' },
 });
 ext.stderr.on('data', (d: Buffer) => process.stderr.write(`[ext] ${d}`));

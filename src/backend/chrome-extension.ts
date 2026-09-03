@@ -26,7 +26,7 @@ import type {
 import type { CurrentSurface, Observation, PageRef } from '../sdk/contracts.ts';
 import { nmBridge } from './ext/bridge.ts';
 import { ExtPage } from './ext/cdp-page.ts';
-import type { Owner } from '../../sdk/contracts.ts';
+import type { Owner } from '../sdk/contracts.ts';
 
 /** Owner identity threaded to the extension for tab attribution (P5). */
 export interface ExtOwner {

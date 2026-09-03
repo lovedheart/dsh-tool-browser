@@ -305,6 +305,7 @@ export const BRIDGE_UPGRADE_PATH = '/api/plugins/tool-browser/ws';
  * `registerUpgrade` + `port`). Returns a disposer.
  */
 export function mountBridge(webServer: {
+  register?: (route: unknown) => () => void;
   registerUpgrade: (route: { path: string; handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void }) => () => void;
   port?: number;
 }): () => void {
