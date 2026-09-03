@@ -53,6 +53,8 @@ export interface Kernel {
   unpin(): void;
   /** Close all pages and release the backend session. */
   close(): Promise<void>;
+  /** Whether close() was called (manager then evicts and re-creates). */
+  isClosed(): boolean;
 }
 
 /** Lifecycle manager caching Kernels per Owner. */

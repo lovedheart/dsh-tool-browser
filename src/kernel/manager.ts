@@ -69,10 +69,11 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
   async function get(owner: Owner): Promise<Kernel> {
     const key = ownerKey(owner);
     const existing = cache.get(key);
-    if (existing) {
+    if (existing && !existing.kernel.isClosed()) {
       existing.lastUsed = Date.now();
       return existing.kernel;
     }
+    if (existing) cache.delete(key); // browser.close() was called: start fresh
 
     // Lazily import the control link + Browser SDK factory so the plugin can load
     // before those modules are present/installed.
@@ -107,14 +108,17 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     // mutable ref resolves the construction cycle; it is set before any model
     // code can run.
     let sandboxRef: Sandbox | undefined;
+    let kernelRef: KernelImpl | undefined;
     const hooks: BrowserHooks = {
       onHandoff: (reason, instructions) => sandboxRef?.recordHandoff(reason, instructions),
+      onClose: () => kernelRef?.markClosed(),
       owner,
     };
     const browser = createBrowserFactory().create(session, hooks);
     const sandbox = new Sandbox(browser);
     sandboxRef = sandbox;
     const kernel = new KernelImpl(owner, session, sandbox);
+    kernelRef = kernel;
 
     cache.set(key, { kernel, lastUsed: Date.now(), pinned: false });
     return kernel;

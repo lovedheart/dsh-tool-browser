@@ -13,6 +13,7 @@ export declare class BrowserImpl implements Browser {
     private readonly pageFactory;
     private connected;
     private onHandoff;
+    private onClose;
     constructor(session: BackendSession, hooks?: BrowserHooks);
     /** Connect. The session is pre-connected by the kernel; this is a no-op check. */
     connect(): Promise<Browser>;

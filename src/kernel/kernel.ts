@@ -114,6 +114,16 @@ export class KernelImpl implements Kernel {
     return this.pinned;
   }
 
+  /** Whether close() was called (manager then evicts and re-creates). */
+  isClosed(): boolean {
+    return this.closed;
+  }
+
+  /** Mark closed without re-tearing the session (facade browser.close() path). */
+  markClosed(): void {
+    this.closed = true;
+  }
+
   /** Timestamp of the most recent pin() call, if any. */
   getPinnedAt(): number | undefined {
     return this.pinnedAt;

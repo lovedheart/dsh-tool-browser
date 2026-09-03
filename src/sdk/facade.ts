@@ -48,6 +48,8 @@ export interface BrowserHooks {
   onHandoff?: (reason: string, instructions: string) => void;
   /** The owner this session belongs to (surfaced by sessionStatus()). */
   owner?: Owner;
+  /** Fired after close(); lets the kernel evict itself from the manager cache. */
+  onClose?: () => void;
 }
 
 /**

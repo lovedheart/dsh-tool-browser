@@ -185,6 +185,19 @@ const closed = await manager.execute({
 });
 check('closed page → governed error', /RETRYABLE\/state_stale|state_stale/.test(JSON.stringify(closed.value ?? closed.error)), JSON.stringify(closed.value ?? closed.error).slice(0, 160));
 
+// regression: after browser.close(), the next call must get a FRESH session
+const closedSess = await manager.execute({
+  requestId: 'p4-6',
+  owner: { workspace_id: 'p4-ws', session_id: 'p4-sess' },
+  code: `await browser.close(); return { ok: true };`,
+});
+const reopened = await manager.execute({
+  requestId: 'p4-7',
+  owner: { workspace_id: 'p4-ws', session_id: 'p4-sess' },
+  code: `browser = await Browser.connect(); page = await browser.open("data:text/html,<p>again</p>"); obs = await page.snapshot(); return { ok: obs.text.includes('again') };`,
+});
+check('close() then reconnect gets a fresh session', reopened.error === undefined && JSON.parse(reopened.value || '{}').ok === true, JSON.stringify(reopened.error ?? reopened.value));
+
 await manager.dispose();
 ws.close();
 ext.kill('SIGKILL');

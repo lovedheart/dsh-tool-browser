@@ -17,10 +17,12 @@ export class BrowserImpl {
     pageFactory = createPageFactory();
     connected = true; // kernel pre-connects the session
     onHandoff;
+    onClose;
     constructor(session, hooks) {
         this.session = session;
         this.owner = hooks?.owner ?? { workspace_id: '', session_id: '' };
         this.onHandoff = hooks?.onHandoff;
+        this.onClose = hooks?.onClose;
     }
     /** Connect. The session is pre-connected by the kernel; this is a no-op check. */
     async connect() {
@@ -38,6 +40,7 @@ export class BrowserImpl {
     async close() {
         await this.session.close();
         this.connected = false;
+        this.onClose?.();
     }
     /** Hand a step back to a human (captcha/login/2FA); the run stops here. */
     async handoff(reason, instructions) {

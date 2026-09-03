@@ -30,6 +30,10 @@ export declare class KernelImpl implements Kernel {
     unpin(): void;
     /** Whether this kernel is currently pinned. */
     isPinned(): boolean;
+    /** Whether close() was called (manager then evicts and re-creates). */
+    isClosed(): boolean;
+    /** Mark closed without re-tearing the session (facade browser.close() path). */
+    markClosed(): void;
     /** Timestamp of the most recent pin() call, if any. */
     getPinnedAt(): number | undefined;
     /** Close all pages and release the backend session. Idempotent. */

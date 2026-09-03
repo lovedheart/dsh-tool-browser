@@ -95,6 +95,14 @@ export class KernelImpl {
     isPinned() {
         return this.pinned;
     }
+    /** Whether close() was called (manager then evicts and re-creates). */
+    isClosed() {
+        return this.closed;
+    }
+    /** Mark closed without re-tearing the session (facade browser.close() path). */
+    markClosed() {
+        this.closed = true;
+    }
     /** Timestamp of the most recent pin() call, if any. */
     getPinnedAt() {
         return this.pinnedAt;

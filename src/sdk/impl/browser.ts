@@ -24,11 +24,13 @@ export class BrowserImpl implements Browser {
   private readonly pageFactory = createPageFactory();
   private connected = true; // kernel pre-connects the session
   private onHandoff: ((reason: string, instructions: string) => void) | undefined;
+  private onClose: (() => void) | undefined;
 
   constructor(session: BackendSession, hooks?: BrowserHooks) {
     this.session = session;
     this.owner = hooks?.owner ?? { workspace_id: '', session_id: '' };
     this.onHandoff = hooks?.onHandoff;
+    this.onClose = hooks?.onClose;
   }
 
   /** Connect. The session is pre-connected by the kernel; this is a no-op check. */
@@ -48,6 +50,7 @@ export class BrowserImpl implements Browser {
   async close(): Promise<void> {
     await this.session.close();
     this.connected = false;
+    this.onClose?.();
   }
 
   /** Hand a step back to a human (captcha/login/2FA); the run stops here. */
