@@ -180,16 +180,18 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
 export const extensionBridgePlugin = {
   name: 'tool-browser-extension-bridge',
   inject: ['webServer'],
-  apply(ctx: any, _config: BrowserToolConfig): void {
-    void mountExtensionBridge(ctx);
+  apply(ctx: any, config: BrowserToolConfig): void {
+    void mountExtensionBridge(ctx, config.closeOrphanTabs);
   },
 };
 
-async function mountExtensionBridge(ctx: any): Promise<void> {
-  const [bridgeMod, setupMod] = await Promise.all([
+async function mountExtensionBridge(ctx: any, closeOrphanTabs = false): Promise<void> {
+  const [bridgeMod, setupMod, resilienceMod] = await Promise.all([
     import('./backend/ext/bridge.ts'),
     import('./backend/ext/setup.ts'),
+    import('./backend/ext/resilience.ts'),
   ]);
+  resilienceMod.configureResilience({ closeOrphanTabs });
   const { mountBridge, BRIDGE_UPGRADE_PATH } = bridgeMod;
   const { installStatus, runSetup } = setupMod;
   const disposers: Array<() => void> = [mountBridge(ctx.webServer)];

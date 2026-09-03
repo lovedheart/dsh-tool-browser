@@ -25,6 +25,7 @@ import type {
 } from './ports.ts';
 import type { CurrentSurface, Observation, PageRef } from '../sdk/contracts.ts';
 import { nmBridge } from './ext/bridge.ts';
+import { registerSession, unregisterSession } from './ext/resilience.ts';
 import { ExtPage } from './ext/cdp-page.ts';
 import type { Owner } from '../sdk/contracts.ts';
 
@@ -40,11 +41,32 @@ class ExtSession {
   readonly pageIdsByTab = new Map<number, string>();
   private activePageId: string | null = null;
 
-  constructor(readonly owner: ExtOwner, readonly opts: BackendOptions) {}
+  needsReopen = false;
+
+  constructor(readonly owner: ExtOwner, readonly opts: BackendOptions) {
+    registerSession(this as unknown as import('./ext/resilience.ts').ExtSessionLike);
+  }
+
+  get ownerId(): string {
+    return this.owner.ownerId;
+  }
+  get workspaceId(): string {
+    return this.owner.workspaceId;
+  }
+
+  /** Best-effort CDP re-enable for tabs that survived a bridge blip. */
+  reenablePages(): void {
+    for (const pageId of this.pages.keys()) {
+      const page = new ExtPage(this, pageId);
+      void page.cdp('Page.enable').catch(() => undefined);
+      void page.cdp('Runtime.enable').catch(() => undefined);
+    }
+  }
 
   async cdp<T = Record<string, unknown>>(pageId: string, method: string, params: Record<string, unknown> = {}): Promise<T> {
     const tabId = this.pages.get(pageId);
     if (tabId === undefined) {
+      if (this.needsReopen) throw needsReopenError();
       throw new BrowserError({
         category: 'RETRYABLE',
         cause: 'state_stale',
@@ -90,6 +112,7 @@ class ExtSession {
     this.pages.set(pageId, tabId);
     this.pageIdsByTab.set(tabId, pageId);
     this.activePageId = pageId;
+    this.needsReopen = false;
     const page = new ExtPage(this, pageId);
     try {
       await page.cdp('Page.enable');
@@ -165,6 +188,7 @@ class ExtSession {
 
   /** Close only OUR tabs; never the user's browser (QwenPaw parity). */
   async close(): Promise<void> {
+    unregisterSession(this as unknown as import('./ext/resilience.ts').ExtSessionLike);
     for (const [pageId, tabId] of [...this.pages]) {
       await this.closePage(pageId).catch(() => undefined);
       void tabId;

@@ -32,6 +32,7 @@ const suites = [
   ['ext-nmhost', 'e2e-ext-nmhost.ts'],
   ['ext-bridge', 'e2e-ext-bridge.ts'],
   ['ext-control', 'e2e-ext-control.ts'],
+  ['ext-resilience', 'e2e-ext-resilience.ts'],
   ...(offline ? [] : [['launch-opts', 'e2e-launch-opts.ts']]),
 ];
 

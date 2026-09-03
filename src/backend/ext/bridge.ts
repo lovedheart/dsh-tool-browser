@@ -276,13 +276,15 @@ function contractMismatches(contract: unknown): string[] {
 
 function wireErrorCategory(err: { code?: number; message?: string }): 'RETRYABLE' | 'FATAL' | 'ASK_HUMAN' {
   const m = String(err.message ?? '');
-  // Extension-side tab staleness maps to retry (re-attach next call).
-  if (/no tab with id|tab (?:was )?closed|debugger attach/i.test(m)) return 'RETRYABLE';
+  // Extension-side tab staleness maps to retry (re-attach next call);
+  // protected-tab refusals (chrome:// etc.) are fatal misuse of the handle.
+  if (/no tab with id|tab (?:was )?closed|Cannot attach|cross-origin/i.test(m)) return 'RETRYABLE';
+  if (/protected|not attachable/i.test(m)) return 'FATAL';
   return 'FATAL';
 }
-function wireErrorCause(err: { message?: string }): 'bridge_disconnected' | 'internal' | 'navigation_failed' {
+function wireErrorCause(err: { message?: string }): 'bridge_disconnected' | 'internal' | 'navigation_failed' | 'state_stale' {
   const m = String(err.message ?? '');
-  if (/no tab with id|tab (?:was )?closed/.test(m)) return 'bridge_disconnected';
+  if (/no tab with id|tab (?:was )?closed/.test(m)) return 'state_stale';
   return 'internal';
 }
 
