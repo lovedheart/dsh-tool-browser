@@ -118,6 +118,16 @@ export class ExtPage {
         return this.session.screenshotTo(this.id, file);
     }
     async input(kind, verb, opts) {
+        if (kind === 'mouse' && (verb === 'down' || verb === 'move' || verb === 'up')) {
+            const x = Number(opts.x ?? 0);
+            const y = Number(opts.y ?? 0);
+            const type = verb === 'down' ? 'mousePressed' : verb === 'up' ? 'mouseReleased' : 'mouseMoved';
+            await this.cdp('Input.dispatchMouseEvent', {
+                type, x, y, button: verb === 'move' ? 'none' : 'left', clickCount: 0,
+                buttons: verb === 'up' ? 0 : verb === 'down' ? 1 : 1,
+            });
+            return { evidence: `mouse.${verb} (${x},${y})` };
+        }
         if (kind === 'mouse' && verb === 'click') {
             const x = Number(opts.x ?? 0);
             const y = Number(opts.y ?? 0);

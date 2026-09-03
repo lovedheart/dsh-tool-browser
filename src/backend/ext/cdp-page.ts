@@ -135,9 +135,19 @@ export class ExtPage implements BackendPage {
 
   async input(
     kind: 'mouse' | 'keyboard',
-    verb: 'click' | 'press' | 'wheel',
+    verb: 'click' | 'press' | 'wheel' | 'down' | 'move' | 'up',
     opts: { x?: number; y?: number; key?: string; delta_x?: number; delta_y?: number },
   ): Promise<Record<string, unknown>> {
+    if (kind === 'mouse' && (verb === 'down' || verb === 'move' || verb === 'up')) {
+      const x = Number(opts.x ?? 0);
+      const y = Number(opts.y ?? 0);
+      const type = verb === 'down' ? 'mousePressed' : verb === 'up' ? 'mouseReleased' : 'mouseMoved';
+      await this.cdp('Input.dispatchMouseEvent', {
+        type, x, y, button: verb === 'move' ? 'none' : 'left', clickCount: 0,
+        buttons: verb === 'up' ? 0 : verb === 'down' ? 1 : 1,
+      });
+      return { evidence: `mouse.${verb} (${x},${y})` };
+    }
     if (kind === 'mouse' && verb === 'click') {
       const x = Number(opts.x ?? 0);
       const y = Number(opts.y ?? 0);

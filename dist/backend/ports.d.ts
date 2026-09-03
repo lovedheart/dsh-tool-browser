@@ -25,7 +25,7 @@ export interface BackendPage {
         path: string;
     }>;
     /** Coordinate/keyboard input. kind: 'mouse' | 'keyboard'. */
-    input(kind: 'mouse' | 'keyboard', verb: 'click' | 'press' | 'wheel', opts: {
+    input(kind: 'mouse' | 'keyboard', verb: 'click' | 'press' | 'wheel' | 'down' | 'move' | 'up', opts: {
         x?: number;
         y?: number;
         key?: string;

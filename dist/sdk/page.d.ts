@@ -10,6 +10,15 @@ export interface InputSurface {
     click(x: number, y: number): Promise<ActionEvidence>;
     press(key: string): Promise<ActionEvidence>;
     wheel(deltaX?: number, deltaY?: number): Promise<ActionEvidence>;
+    /**
+     * Press-drag-release from (x1,y1) to (x2,y2) with a human-like trail:
+     * eased steps, small lateral jitter, dwells at the ends. For sliders,
+     * puzzle drags, reorder handles.
+     */
+    drag(x1: number, y1: number, x2: number, y2: number, opts?: {
+        steps?: number;
+        durationMs?: number;
+    }): Promise<ActionEvidence>;
 }
 export interface Page {
     readonly id: string;

@@ -37,6 +37,8 @@ export class PageImpl implements Page {
         op(bp.input('mouse', 'press', { key })) as Promise<ActionEvidence>,
       wheel: (deltaX?: number, deltaY?: number) =>
         op(bp.input('mouse', 'wheel', { delta_x: deltaX ?? 0, delta_y: deltaY ?? 0 })) as Promise<ActionEvidence>,
+      drag: (x1: number, y1: number, x2: number, y2: number, opts?: { steps?: number; durationMs?: number }) =>
+        humanDrag(bp, x1, y1, x2, y2, opts) as Promise<ActionEvidence>,
     };
     this.keyboard = {
       click: (x: number, y: number) =>
@@ -45,6 +47,8 @@ export class PageImpl implements Page {
         op(bp.input('keyboard', 'press', { key })) as Promise<ActionEvidence>,
       wheel: (deltaX?: number, deltaY?: number) =>
         op(bp.input('keyboard', 'wheel', { delta_x: deltaX ?? 0, delta_y: deltaY ?? 0 })) as Promise<ActionEvidence>,
+      drag: (x1: number, y1: number, x2: number, y2: number, opts?: { steps?: number; durationMs?: number }) =>
+        humanDrag(bp, x1, y1, x2, y2, opts) as Promise<ActionEvidence>,
     };
   }
 
@@ -156,4 +160,41 @@ export function createPageFactory(): PageFactory {
       return new PageImpl(backendPage);
     },
   };
+}
+
+/**
+ * A human-like drag: pointer down, eased waypoints with slight lateral jitter
+ * and dwell, pointer up. Runs under the current abort signal so a cancelled
+ * turn can't leave the mouse stuck down.
+ */
+async function humanDrag(
+  bp: BackendPage,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  opts?: { steps?: number; durationMs?: number },
+): Promise<ActionEvidence> {
+  const steps = Math.max(6, Math.min(40, opts?.steps ?? 24));
+  const durationMs = Math.max(120, Math.min(6000, opts?.durationMs ?? 900));
+  const stepMs = durationMs / steps;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2); // easeInOutQuad
+
+  await op(bp.input('mouse', 'move', { x: x1, y: y1 }));
+  await sleep(40);
+  await op(bp.input('mouse', 'down', { x: x1, y: y1 }));
+  await sleep(60);
+  for (let i = 1; i <= steps; i++) {
+    const t = ease(i / steps);
+    // lateral wobble peaks mid-drag, ~±1.2px; tiny vertical jitter too.
+    const wob = Math.sin((i / steps) * Math.PI) * 1.2;
+    const x = x1 + (x2 - x1) * t + (i === steps ? 0 : wob);
+    const y = y1 + (y2 - y1) * t + (i === steps ? 0 : wob * 0.4);
+    await op(bp.input('mouse', 'move', { x, y }));
+    await sleep(stepMs);
+  }
+  await sleep(80); // settle before release
+  await op(bp.input('mouse', 'up', { x: x2, y: y2 }));
+  return { evidence: `dragged (${x1},${y1}) -> (${x2},${y2}) in ${steps} steps`, ok: true };
 }

@@ -446,9 +446,17 @@ export class PlaywrightPage implements BackendPage {
   /** Coordinate/keyboard input. */
   async input(
     kind: 'mouse' | 'keyboard',
-    verb: 'click' | 'press' | 'wheel',
+    verb: 'click' | 'press' | 'wheel' | 'down' | 'move' | 'up',
     opts: { x?: number; y?: number; key?: string; delta_x?: number; delta_y?: number },
   ): Promise<Record<string, unknown>> {
+    if (kind === 'mouse' && (verb === 'down' || verb === 'move' || verb === 'up')) {
+      const x = Number(opts.x ?? 0);
+      const y = Number(opts.y ?? 0);
+      if (verb === 'down') await this.page.mouse.down();
+      else if (verb === 'up') await this.page.mouse.up();
+      else await this.page.mouse.move(x, y);
+      return { evidence: `mouse.${verb}(${x}, ${y})`, ok: true, kind, verb };
+    }
     if (kind === 'mouse' && verb === 'click') {
       await this.page.mouse.click(opts.x ?? 0, opts.y ?? 0);
       return { evidence: `mouse.click(${opts.x ?? 0}, ${opts.y ?? 0})`, ok: true, kind, verb };

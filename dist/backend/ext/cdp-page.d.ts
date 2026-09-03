@@ -24,7 +24,7 @@ export declare class ExtPage implements BackendPage {
     screenshot(): Promise<{
         path: string;
     }>;
-    input(kind: 'mouse' | 'keyboard', verb: 'click' | 'press' | 'wheel', opts: {
+    input(kind: 'mouse' | 'keyboard', verb: 'click' | 'press' | 'wheel' | 'down' | 'move' | 'up', opts: {
         x?: number;
         y?: number;
         key?: string;

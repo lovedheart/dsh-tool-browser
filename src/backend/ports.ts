@@ -27,7 +27,7 @@ export interface BackendPage {
   /** Coordinate/keyboard input. kind: 'mouse' | 'keyboard'. */
   input(
     kind: 'mouse' | 'keyboard',
-    verb: 'click' | 'press' | 'wheel',
+    verb: 'click' | 'press' | 'wheel' | 'down' | 'move' | 'up',
     opts: { x?: number; y?: number; key?: string; delta_x?: number; delta_y?: number },
   ): Promise<Record<string, unknown>>;
   /**

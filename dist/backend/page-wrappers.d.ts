@@ -138,7 +138,7 @@ export declare class PlaywrightPage implements BackendPage {
         path: string;
     }>;
     /** Coordinate/keyboard input. */
-    input(kind: 'mouse' | 'keyboard', verb: 'click' | 'press' | 'wheel', opts: {
+    input(kind: 'mouse' | 'keyboard', verb: 'click' | 'press' | 'wheel' | 'down' | 'move' | 'up', opts: {
         x?: number;
         y?: number;
         key?: string;
