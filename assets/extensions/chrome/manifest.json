@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "DSH Browser",
+  "version": "0.1.1",
+  "description": "Connect DeepSeek Harness to this Chrome browser.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAti+Gix+FrfJ30Eb//zW5NzizgcvKmeMXuo1kSYY4tmF87J4jf04H/mrcWERcmipopv5AJ8pAIyV/8xz4g0fOxBy5mozNsNhHdDJFseeMRcHhl/4QkPJb8OoS5+795m/sBH0AqpVqufOV6wh6OkMWEq8pl3u2EHdvTaviSfcu/4zMT7GULyBqbleHz35ONce3PixWgmzAmd9CgS1yYxtKKrk5l7FgpHHvXZ0Pzq6T+pJWX/iKCG7aUUxe5wlKifNYsuLMaR+QzdagLspxZInOKaNqDNYLkzToqmhDQgeKvhrjMmch3rRMMSwFqN3SRWS43SJx2Qmb3vkg+DnoOWX/2QIDAQAB",
+  "permissions": [
+    "nativeMessaging",
+    "debugger",
+    "tabs",
+    "activeTab",
+    "alarms",
+    "storage",
+    "tabGroups",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:*/*",
+      "http://127.0.0.1:*/*",
+      "http://[::1]:*/*"
+    ]
+  },
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "icons": {
+    "16": "icons/logo-16.png",
+    "32": "icons/logo-32.png",
+    "48": "icons/logo-48.png",
+    "128": "icons/logo-128.png"
+  },
+  "action": {
+    "default_title": "DSH Browser",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/logo-16.png",
+      "32": "icons/logo-32.png",
+      "48": "icons/logo-48.png",
+      "128": "icons/logo-128.png"
+    }
+  }
+}

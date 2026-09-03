@@ -28,6 +28,7 @@ const suites = [
   ...(offline ? [] : [['network', 'e2e-network.ts']]),
   ['cdp', 'e2e-cdp.ts'],
   ['ext-seam', 'e2e-ext-seam.ts'],
+  ['ext-setup', 'e2e-ext-setup.ts'],
   ...(offline ? [] : [['launch-opts', 'e2e-launch-opts.ts']]),
 ];
 
