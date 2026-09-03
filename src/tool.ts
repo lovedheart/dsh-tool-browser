@@ -43,6 +43,13 @@ function ownerFor(sessionId: string | undefined): { workspace_id: string; sessio
 }
 
 export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
+  // The extension backend needs the WS bridge + setup routes on the webserver.
+  // Mount them through a nested plugin so `webServer` is a declared inject —
+  // other backends never touch it (the strict Cordis ctx proxy rejects
+  // undeclared properties, and non-web deployments have no such service).
+  if (config.backend === 'chrome-extension') {
+    ctx.plugin(extensionBridgePlugin, config);
+  }
   const manager: KernelManager = createKernelManager({
     backend: config.backend,
     headless: config.headless,
@@ -164,4 +171,69 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
       },
     }),
   );
+}
+
+/**
+ * Wire the extension backend's server-side plumbing: the NM bridge WS upgrade,
+ * plus `setup` / `status` HTTP routes. Disposes with the plugin fiber.
+ */
+export const extensionBridgePlugin = {
+  name: 'tool-browser-extension-bridge',
+  inject: ['webServer'],
+  apply(ctx: any, _config: BrowserToolConfig): void {
+    void mountExtensionBridge(ctx);
+  },
+};
+
+async function mountExtensionBridge(ctx: any): Promise<void> {
+  const [bridgeMod, setupMod] = await Promise.all([
+    import('./backend/ext/bridge.ts'),
+    import('./backend/ext/setup.ts'),
+  ]);
+  const { mountBridge, BRIDGE_UPGRADE_PATH } = bridgeMod;
+  const { installStatus, runSetup } = setupMod;
+  const disposers: Array<() => void> = [mountBridge(ctx.webServer)];
+  const base = '/api/plugins/tool-browser';
+  disposers.push(
+    ctx.webServer.register({
+      kind: 'exact' as const,
+      path: `${base}/chrome/status`,
+      handler: (_req: any, res: any) => {
+        try {
+          const status = { ...installStatus(), bridge: bridgeMod.nmBridge.status() };
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(status));
+        } catch (e) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: (e as Error).message }));
+        }
+      },
+    }),
+  );
+  disposers.push(
+    ctx.webServer.register({
+      kind: 'exact' as const,
+      path: `${base}/chrome/setup`,
+      handler: (_req: any, res: any) => {
+        try {
+          const wsUrl = `ws://127.0.0.1:${ctx.webServer.port}${BRIDGE_UPGRADE_PATH}`;
+          const r = runSetup({ wsUrl });
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, ...r }));
+        } catch (e) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: (e as Error).message }));
+        }
+      },
+    }),
+  );
+  ctx.effect(() => () => {
+    for (const d of disposers) {
+      try {
+        d();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, 'dsh-tool-browser: extension bridge');
 }
