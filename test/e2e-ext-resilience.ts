@@ -61,6 +61,7 @@ mountBridge({
 });
 const home = mkdtempSync(join(tmpdir(), 'p5-res-'));
 process.env.DSH_HOME = home;
+process.env.XDG_CONFIG_HOME = join(home, 'xdg');
 runSetup({ wsUrl: `ws://127.0.0.1:${port}/api/plugins/tool-browser/ws`, home });
 const token = JSON.parse(readFileSync(join(home, 'nm-bridge.json'), 'utf8')).token;
 

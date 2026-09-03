@@ -39,8 +39,10 @@ export function nativeManifestPath(platform: NodeJS.Platform = process.platform,
   if (platform === 'darwin') {
     return join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts', `${NATIVE_HOST_NAME}.json`);
   }
-  // Linux (and other XDG platforms). win32 registry support is out of scope.
-  return join(home, '.config', 'google-chrome', 'NativeMessagingHosts', `${NATIVE_HOST_NAME}.json`);
+  // Linux (and other XDG platforms): Chrome reads the manifest from the REAL
+  // user config dir, not under DSH_HOME — honor XDG_CONFIG_HOME for tests.
+  const configHome = process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config');
+  return join(configHome, 'google-chrome', 'NativeMessagingHosts', `${NATIVE_HOST_NAME}.json`);
 }
 
 export function extensionInstallDir(home = dshHome()): string {

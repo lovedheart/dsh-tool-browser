@@ -14,6 +14,8 @@ function check(name: string, cond: boolean, extra = '') {
 }
 
 const home = mkdtempSync(join(tmpdir(), 'dsh-tb-p1-'));
+// Isolate the NM manifest (always written to the real user config dir) too.
+process.env.XDG_CONFIG_HOME = join(home, 'xdg');
 const wsUrl = 'ws://127.0.0.1:3080/api/plugins/tool-browser/ws';
 
 const r1 = runSetup({ wsUrl, home });
