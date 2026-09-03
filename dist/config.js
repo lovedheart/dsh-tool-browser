@@ -7,7 +7,11 @@
  * optional fields are a union with `z.const(undefined)`.
  */
 import z from '@deepseek-ai/schemastery';
-const backendEnum = z.union([z.const('playwright'), z.const('chrome')]);
+const backendEnum = z.union([
+    z.const('playwright'),
+    z.const('chrome'),
+    z.const('chrome-extension'),
+]);
 const optionalString = z.union([z.string(), z.const(undefined)]);
 /** String list, e.g. extra Chromium launch flags (mirrors QwenPaw `args`). */
 const stringList = z.array(z.string());
@@ -19,7 +23,12 @@ const headlessEnum = z.union([z.const(true), z.const(false), z.const('auto')]);
 export const Config = z.object({
     /** Register the browser tool. */
     enabled: z.boolean().default(true),
-    /** 'playwright' = managed Chromium; 'chrome' = user's real browser over CDP. */
+    /**
+     * 'playwright' = managed Chromium; 'chrome' = user's real browser over CDP
+     * (needs Chrome launched with --remote-debugging-port); 'chrome-extension' =
+     * user's real Chrome driven via the DSH browser extension + Native Messaging
+     * (no debug-port flag; needs a one-time extension setup).
+     */
     backend: backendEnum.default('playwright'),
     /**
      * Headless launch. 'auto' resolves at connect time: headless inside a

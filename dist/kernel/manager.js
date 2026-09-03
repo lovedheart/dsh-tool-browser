@@ -43,9 +43,16 @@ export function createKernelManager(cfg) {
         // Lazily import the control link + Browser SDK factory so the plugin can load
         // before those modules are present/installed.
         const { createBrowserFactory } = await import("../sdk/impl/browser.js");
-        const link = cfg.backend === 'chrome'
-            ? (await import("../backend/chrome-cdp.js")).createChromeControlLink()
-            : (await import("../backend/playwright.js")).createPlaywrightControlLink();
+        let link;
+        if (cfg.backend === 'chrome') {
+            link = (await import("../backend/chrome-cdp.js")).createChromeControlLink();
+        }
+        else if (cfg.backend === 'chrome-extension') {
+            link = (await import("../backend/chrome-extension.js")).createChromeExtensionControlLink();
+        }
+        else {
+            link = (await import("../backend/playwright.js")).createPlaywrightControlLink();
+        }
         const headless = resolveHeadless(cfg.headless);
         const session = await link.connect({
             backend: cfg.backend,

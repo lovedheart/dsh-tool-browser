@@ -16,7 +16,7 @@ import type { KernelManager } from './types.ts';
 export declare function resolveHeadless(value: boolean | 'auto'): boolean;
 /** Configuration for {@link createKernelManager}. */
 export interface ManagerConfig {
-    readonly backend: 'playwright' | 'chrome';
+    readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
     /** true | false | 'auto' — 'auto' is resolved at connect time. */
     readonly headless: boolean | 'auto';
     readonly executablePath?: string;

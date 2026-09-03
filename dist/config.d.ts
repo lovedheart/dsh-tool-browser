@@ -10,8 +10,13 @@ import z from '@deepseek-ai/schemastery';
 export declare const Config: z<Schemastery.ObjectS<{
     /** Register the browser tool. */
     enabled: z<boolean, boolean>;
-    /** 'playwright' = managed Chromium; 'chrome' = user's real browser over CDP. */
-    backend: z<"playwright" | "chrome", "playwright" | "chrome">;
+    /**
+     * 'playwright' = managed Chromium; 'chrome' = user's real browser over CDP
+     * (needs Chrome launched with --remote-debugging-port); 'chrome-extension' =
+     * user's real Chrome driven via the DSH browser extension + Native Messaging
+     * (no debug-port flag; needs a one-time extension setup).
+     */
+    backend: z<"playwright" | "chrome" | "chrome-extension", "playwright" | "chrome" | "chrome-extension">;
     /**
      * Headless launch. 'auto' resolves at connect time: headless inside a
      * container (/.dockerenv) or when no display server is reachable, headed
@@ -59,8 +64,13 @@ export declare const Config: z<Schemastery.ObjectS<{
 }>, Schemastery.ObjectT<{
     /** Register the browser tool. */
     enabled: z<boolean, boolean>;
-    /** 'playwright' = managed Chromium; 'chrome' = user's real browser over CDP. */
-    backend: z<"playwright" | "chrome", "playwright" | "chrome">;
+    /**
+     * 'playwright' = managed Chromium; 'chrome' = user's real browser over CDP
+     * (needs Chrome launched with --remote-debugging-port); 'chrome-extension' =
+     * user's real Chrome driven via the DSH browser extension + Native Messaging
+     * (no debug-port flag; needs a one-time extension setup).
+     */
+    backend: z<"playwright" | "chrome" | "chrome-extension", "playwright" | "chrome" | "chrome-extension">;
     /**
      * Headless launch. 'auto' resolves at connect time: headless inside a
      * container (/.dockerenv) or when no display server is reachable, headed
@@ -108,7 +118,7 @@ export declare const Config: z<Schemastery.ObjectS<{
 }>>;
 export type BrowserToolConfig = {
     enabled: boolean;
-    backend: 'playwright' | 'chrome';
+    backend: 'playwright' | 'chrome' | 'chrome-extension';
     /** 'auto' resolves at connect time (container/no-display → headless). */
     headless: boolean | 'auto';
     executablePath?: string;
