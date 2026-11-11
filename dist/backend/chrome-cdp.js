@@ -21,6 +21,7 @@
 import { chromium } from 'playwright';
 import { BrowserError } from "../governance/errors.js";
 import { PlaywrightPage } from "./page-wrappers.js";
+import { discoverCdpUrl } from "./cdp-discovery.js";
 // ---------------------------------------------------------------------------
 // BackendSession
 // ---------------------------------------------------------------------------
@@ -165,16 +166,20 @@ class ChromeSession {
 export function createChromeControlLink() {
     return {
         async connect(opts) {
-            if (!opts.cdpUrl) {
+            // Explicit cdpUrl wins; otherwise scan the conventional local
+            // debugging ports (QwenPaw cdp/discovery.py parity) so a Chrome
+            // already started with --remote-debugging-port works unconfigured.
+            const cdpUrl = opts.cdpUrl ?? (await discoverCdpUrl());
+            if (!cdpUrl) {
                 throw new BrowserError({
                     category: 'FATAL',
                     cause: 'config_invalid',
-                    reason: 'backend=chrome requires cdpUrl',
-                    suggested_action: 'Set cdpUrl (e.g. http://127.0.0.1:9222) in the tool config, and launch ' +
-                        'Chrome with --remote-debugging-port=9222.',
+                    reason: 'backend=chrome found no CDP endpoint (cdpUrl unset, ports 9222-9232 quiet)',
+                    suggested_action: 'Launch Chrome with --remote-debugging-port=9222, or set cdpUrl ' +
+                        '(e.g. http://127.0.0.1:9222) in the tool config.',
                 });
             }
-            const browser = await chromium.connectOverCDP({ endpointURL: opts.cdpUrl });
+            const browser = await chromium.connectOverCDP({ endpointURL: cdpUrl });
             // CDP-attached browsers usually already have a default context; reuse it,
             // or create a fresh one if there is none.
             const context = (await browser.contexts())[0] ?? (await browser.newContext());

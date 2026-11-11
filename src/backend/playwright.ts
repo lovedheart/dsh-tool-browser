@@ -21,6 +21,8 @@ import type {
 } from './ports.ts';
 import type { PageRef } from '../sdk/contracts.ts';
 import { PlaywrightPage } from './page-wrappers.ts';
+import { BrowserError } from '../governance/errors.ts';
+import { ensureManagedChromium } from './managed-chromium.ts';
 
 // ---------------------------------------------------------------------------
 // Internal page record
@@ -151,6 +153,24 @@ class PlaywrightSession implements BackendSession {
 export function createPlaywrightControlLink(): ControlLink {
   return {
     async connect(opts: BackendOptions): Promise<BackendSession> {
+      // Managed-cache gate (QwenPaw parity): unless the caller pinned their
+      // own binary, the driver-matched Chromium must exist. If it does not,
+      // kick off a background install and tell the model when to retry —
+      // instead of dying inside chromium.launch() with an ENOENT dead end.
+      if (!opts.executablePath) {
+        const [ready, detail, retryAfter] = await ensureManagedChromium();
+        if (!ready) {
+          throw new BrowserError({
+            category: 'RETRYABLE',
+            cause: 'timeout',
+            reason: detail
+              ? 'Managed Playwright Chromium install failed.'
+              : 'Managed Playwright Chromium is downloading in the background.',
+            detail,
+            suggested_action: `Wait ${Math.max(1, Math.ceil(retryAfter))} seconds, then retry Browser.connect().`,
+          });
+        }
+      }
       // Viewport is a *context* option in Playwright (not a launch option);
       // args/proxy/executablePath are launch options.
       const launchOptions: {

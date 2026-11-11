@@ -24,6 +24,7 @@ const suites = [
   ['single-instance', 'probe-single-instance.mjs'],
   ['minloop', 'e2e-minloop.ts'],
   ['identity', 'e2e-identity.ts'],
+  ['managed-chromium', 'e2e-managed-chromium.ts'],
   ['integration', 'e2e-plugin-integration.ts'],
   ['abort-preserve', 'e2e-abort-preserve.ts'],
   ...(offline ? [] : [['network', 'e2e-network.ts']]),

@@ -12,6 +12,8 @@
  */
 import { chromium } from 'playwright';
 import { PlaywrightPage } from "./page-wrappers.js";
+import { BrowserError } from "../governance/errors.js";
+import { ensureManagedChromium } from "./managed-chromium.js";
 // ---------------------------------------------------------------------------
 // BackendSession
 // ---------------------------------------------------------------------------
@@ -123,6 +125,24 @@ class PlaywrightSession {
 export function createPlaywrightControlLink() {
     return {
         async connect(opts) {
+            // Managed-cache gate (QwenPaw parity): unless the caller pinned their
+            // own binary, the driver-matched Chromium must exist. If it does not,
+            // kick off a background install and tell the model when to retry —
+            // instead of dying inside chromium.launch() with an ENOENT dead end.
+            if (!opts.executablePath) {
+                const [ready, detail, retryAfter] = await ensureManagedChromium();
+                if (!ready) {
+                    throw new BrowserError({
+                        category: 'RETRYABLE',
+                        cause: 'timeout',
+                        reason: detail
+                            ? 'Managed Playwright Chromium install failed.'
+                            : 'Managed Playwright Chromium is downloading in the background.',
+                        detail,
+                        suggested_action: `Wait ${Math.max(1, Math.ceil(retryAfter))} seconds, then retry Browser.connect().`,
+                    });
+                }
+            }
             // Viewport is a *context* option in Playwright (not a launch option);
             // args/proxy/executablePath are launch options.
             const launchOptions = { headless: opts.headless };

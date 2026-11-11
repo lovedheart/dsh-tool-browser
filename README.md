@@ -21,7 +21,8 @@ login/captcha/2FA. Full API: `skills/browser/SKILL.md`.
 ## Backends
 
 - `playwright` (default) — managed Chromium via the `playwright` package.
-- `chrome` — the user's real browser over CDP (`cdpUrl`). *(landed in P5)*
+- `chrome` — the user's real browser over CDP; `cdpUrl` optional, otherwise
+  ports 9222–9232 are probed automatically. *(landed in P5, P10)*
 - `chrome-extension` — the user's on-screen Chrome via the bundled MV3
   extension + Native Messaging bridge, no debug flag. *(see below)*
 
@@ -47,7 +48,10 @@ dsh plugin --profile <name> add .
 dsh plugin --profile <name> add dsh-tool-browser
 ```
 
-First run needs Chromium:
+First run needs Chromium. Since P10 a missing binary is installed **lazily**:
+the first `Browser.connect()` starts a background `playwright install chromium`
+and answers `[RETRYABLE] … retry in Ns` instead of a dead-end ENOENT. Manual
+install still works (and avoids the first-run wait):
 
 ```bash
 npx playwright install chromium
@@ -77,7 +81,9 @@ in your profile's `cordis.patch.yml`:
 Playwright-launch-only launch knobs: `args`, `proxy`, `viewport`,
 `executablePath`, `userDataDir` (an explicit `userDataDir` wins over the
 `avatar` default dir). `cdpUrl: http://127.0.0.1:9222` applies to
-`backend: chrome` only.
+`backend: chrome` only and may be omitted — the backend then auto-discovers a
+Chrome already running with `--remote-debugging-port` by probing ports
+9222–9232 (an explicit `cdpUrl` or `executablePath` always wins).
 
 ### Chrome-extension backend (drive the user's real Chrome, no debug flag)
 
@@ -135,6 +141,10 @@ P0–P7 implemented and verified:
   `headless: 'auto'` (container/no-display → headless; default).
 - **P9** QwenPaw identity model (`auto`/`user`/`avatar`/`guest`, resolved via
   `resolveIdentitySelection()`, surfaced in `sessionStatus().identity`).
+- **P10** lazy managed-Chromium provisioning (`backend/managed-chromium.ts`:
+  background one-shot install, 60 s failure cooldown, RETRYABLE retry-after —
+  QwenPaw `managed_playwright.py` port) + CDP port auto-discovery
+  (`backend/cdp-discovery.ts`, 9222–9232, QwenPaw `cdp/discovery.py` port).
 
 Timeout/cancel semantics: a per-call abort (tool `timeoutMs` budget or user
 cancel) cuts the run short with a governed `[RETRYABLE]` error and **preserves
@@ -161,6 +171,7 @@ To run a single suite directly:
 ```bash
 npx tsx test/e2e-minloop.ts             # offline: open→snapshot→act→verify + governed errors
 npx tsx test/e2e-identity.ts            # offline: resolveIdentitySelection/avatarProfileDirFor unit asserts
+npx tsx test/e2e-managed-chromium.ts    # offline: lazy Chromium gate + CDP port discovery
 npx tsx test/e2e-plugin-integration.ts  # plugin apply + tool dispatch-path output-schema guard
 npx tsx test/e2e-abort-preserve.ts      # offline: abort/timeout preserves the browser session
 npx tsx test/e2e-network.ts             # online: open example.com→click link→re-snapshot
