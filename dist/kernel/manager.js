@@ -55,6 +55,10 @@ export function resolveIdentitySelection(cfg, identity, bridgeConnected, avatarP
             return { backend: 'playwright', userDataDir: cfg.userDataDir ?? avatarProfileDir, identity: 'avatar' };
         case 'guest':
             return { backend: 'playwright', userDataDir: undefined, identity: 'guest' };
+        case 'managed':
+            // QwenPaw managed_cdp parity: standalone Chrome owned by the plugin,
+            // persistent profile, driven over CDP (survives per-session close).
+            return { backend: 'managed', userDataDir: cfg.userDataDir, identity: 'managed' };
         default: // 'auto'
             if (bridgeConnected)
                 return { backend: 'chrome-extension', userDataDir: cfg.userDataDir, identity: 'user' };
@@ -67,8 +71,15 @@ export function resolveIdentitySelection(cfg, identity, bridgeConnected, avatarP
 }
 /** Per-workspace persistent profile dir for the 'avatar' identity. */
 export function avatarProfileDirFor(workspaceId) {
-    const safe = workspaceId.replace(/[^A-Za-z0-9._-]+/g, '_');
-    return join(homedir(), '.dsh', 'tool-browser', 'avatar', safe);
+    return join(homedir(), '.dsh', 'tool-browser', 'avatar', safeSegment(workspaceId));
+}
+/** Per-workspace persistent profile dir for the 'managed' identity
+ * (QwenPaw managed_cdp's `~/.qwenpaw/browser/cdp/chrome-profile` analogue). */
+export function managedProfileDirFor(workspaceId) {
+    return join(homedir(), '.dsh', 'tool-browser', 'managed', safeSegment(workspaceId));
+}
+function safeSegment(value) {
+    return value.replace(/[^A-Za-z0-9._-]+/g, '_');
 }
 /** Stable cache key for one owner (workspace + session). */
 function ownerKey(owner) {
@@ -105,8 +116,16 @@ export function createKernelManager(cfg) {
             }
         }
         const sel = resolveIdentitySelection(cfg, cfg.identity, bridgeConnected, avatarProfileDirFor(owner.workspace_id));
+        // identity 'managed' implies the per-workspace managed profile dir unless
+        // the operator pinned one (or switched managed to attach-only via cdpUrl).
+        const userDataDir = sel.identity === 'managed' && !sel.userDataDir && !cfg.cdpUrl
+            ? managedProfileDirFor(owner.workspace_id)
+            : sel.userDataDir;
         let link;
-        if (sel.backend === 'chrome') {
+        if (sel.backend === 'managed') {
+            link = (await import("../backend/managed-cdp.js")).createManagedControlLink(ownerKey(owner));
+        }
+        else if (sel.backend === 'chrome') {
             link = (await import("../backend/chrome-cdp.js")).createChromeControlLink();
         }
         else if (sel.backend === 'chrome-extension') {
@@ -127,7 +146,8 @@ export function createKernelManager(cfg) {
             args: cfg.args,
             proxy: cfg.proxy,
             viewport: cfg.viewport,
-            userDataDir: sel.userDataDir,
+            userDataDir,
+            managedCdpPort: cfg.managedCdpPort,
             workspaceDir: cfg.workspaceDir(),
         });
         // The browser and sandbox reference each other (sandbox needs the browser
@@ -147,7 +167,7 @@ export function createKernelManager(cfg) {
         sandboxRef = sandbox;
         const kernel = new KernelImpl(owner, session, sandbox);
         kernelRef = kernel;
-        cache.set(key, { kernel, lastUsed: Date.now(), pinned: false });
+        cache.set(key, { kernel, link, lastUsed: Date.now(), pinned: false });
         return kernel;
     }
     async function execute(req, opts) {
@@ -187,6 +207,7 @@ export function createKernelManager(cfg) {
             if (!entry.pinned && now - entry.lastUsed > cfg.idleTtlMs) {
                 cache.delete(key);
                 await entry.kernel.close().catch(() => undefined);
+                await entry.link.release?.().catch(() => undefined);
             }
         }
     }
@@ -210,6 +231,7 @@ export function createKernelManager(cfg) {
         if (entry) {
             cache.delete(key);
             await entry.kernel.close().catch(() => undefined);
+            await entry.link.release?.().catch(() => undefined);
         }
     }
     async function closeWorkspace(workspaceId) {
@@ -218,6 +240,7 @@ export function createKernelManager(cfg) {
             if (key.startsWith(prefix)) {
                 cache.delete(key);
                 await entry.kernel.close().catch(() => undefined);
+                await entry.link.release?.().catch(() => undefined);
             }
         }
     }
@@ -226,12 +249,14 @@ export function createKernelManager(cfg) {
             cache.delete(key);
             // Best-effort synchronous teardown: fire close without awaiting.
             void entry.kernel.close().catch(() => undefined);
+            void entry.link.release?.().catch(() => undefined);
         }
     }
     async function dispose() {
         for (const [key, entry] of [...cache.entries()]) {
             cache.delete(key);
             await entry.kernel.close().catch(() => undefined);
+            await entry.link.release?.().catch(() => undefined);
         }
     }
     return { get, execute, discardIdle, pin, unpin, closeSession, closeWorkspace, discardAllSync, dispose };

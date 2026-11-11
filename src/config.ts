@@ -26,10 +26,13 @@ const headlessEnum = z.union([z.const(true), z.const(false), z.const('auto')]);
  * 'user' = your real Chrome via the extension bridge (your sign-ins);
  * 'avatar' = standalone browser on a persistent profile (sign-ins survive);
  * 'guest' = standalone incognito, discarded on close;
+ * 'managed' = standalone Chrome owned by the plugin over raw CDP: persistent
+ * profile like 'avatar', but the browser survives a per-session close() and
+ * is reaped only when the last session on the profile is released;
  * 'auto' = 'user' when the extension bridge is connected, else the `backend`
  * config decides (backward-compatible default).
  */
-const identityEnum = z.union([z.const('auto'), z.const('user'), z.const('avatar'), z.const('guest')]);
+const identityEnum = z.union([z.const('auto'), z.const('user'), z.const('avatar'), z.const('guest'), z.const('managed')]);
 
 export const Config = z.object({
   /** Register the browser tool. */
@@ -71,11 +74,18 @@ export const Config = z.object({
    */
   viewport: optionalViewport,
   /**
-   * Persistent profile dir (playwright backend). When set the session uses
+   * Persistent profile dir (playwright backend; identity 'managed' defaults it
+   * to ~/.dsh/tool-browser/managed/<workspace>). When set the session uses
    * `chromium.launchPersistentContext` so cookies/logins survive across
    * restarts; otherwise a fresh ephemeral context is created.
    */
   userDataDir: optionalString,
+  /**
+   * identity 'managed': debug port for the owned Chrome (0 = Chrome picks a
+   * free one and reports it via DevToolsActivePort — the default, safe for
+   * parallel launches). `cdpUrl` instead switches managed to attach-only.
+   */
+  managedCdpPort: z.number().default(0),
   /** Cooperative per-call budget in ms (enforced by dsh-tool-call-timeout-policy). */
   execTimeoutMs: z.number().default(120_000),
   /** Reclaim an idle (unpinned) kernel after this many ms. */
@@ -96,7 +106,9 @@ export type BrowserToolConfig = {
   /** 'auto' resolves at connect time (container/no-display → headless). */
   headless: boolean | 'auto';
   /** Resolved browser identity for this profile; see the Config docstring. */
-  identity: 'auto' | 'user' | 'avatar' | 'guest';
+  identity: 'auto' | 'user' | 'avatar' | 'guest' | 'managed';
+  /** identity 'managed': fixed debug port for the owned Chrome (0 = auto). */
+  managedCdpPort: number;
   executablePath?: string;
   cdpUrl?: string;
   args: string[];

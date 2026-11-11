@@ -25,6 +25,7 @@ const suites = [
   ['minloop', 'e2e-minloop.ts'],
   ['identity', 'e2e-identity.ts'],
   ['managed-chromium', 'e2e-managed-chromium.ts'],
+  ['managed-cdp', 'e2e-managed-cdp.ts'],
   ['integration', 'e2e-plugin-integration.ts'],
   ['abort-preserve', 'e2e-abort-preserve.ts'],
   ...(offline ? [] : [['network', 'e2e-network.ts']]),

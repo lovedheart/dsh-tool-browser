@@ -35,6 +35,7 @@ login/captcha/2FA. Full API: `skills/browser/SKILL.md`.
 | `user` | your real Chrome (forces `chrome-extension`; ASK_HUMAN with a fix when the bridge is down) | your existing Chrome profile |
 | `avatar` | managed Chromium | persistent dir `~/.dsh/tool-browser/avatar/<workspace>` (sign-ins survive) |
 | `guest` | managed Chromium | incognito, discarded on close |
+| `managed` | plugin-owned Chrome over CDP (launched with a debug port on its own profile; survives per-session `close()`, reaped on last release) | persistent dir `~/.dsh/tool-browser/managed/<workspace>` |
 | `auto` (default) | `user` when the extension bridge is connected, otherwise `backend` stands (backward compatible) | — |
 
 The resolved identity is surfaced as `sessionStatus().identity`.
@@ -124,6 +125,8 @@ src/governance/         BrowserError + teaching-style error text
 src/wire/               owner derivation + result rendering
 src/backend/managed-chromium.ts  lazy Chromium install gate (P10)
 src/backend/cdp-discovery.ts     CDP port scanner for backend=chrome (P10)
+src/backend/managed-cdp.ts       managed identity: owned Chrome over CDP (P11)
+src/backend/managed-cdp-launch.ts  DevToolsActivePort launch/reap helpers (P11)
 skills/browser/SKILL.md the model-facing SDK manual
 ```
 
@@ -154,6 +157,13 @@ P0–P7 implemented and verified:
   background one-shot install, 60 s failure cooldown, RETRYABLE retry-after —
   QwenPaw `managed_playwright.py` port) + CDP port auto-discovery
   (`backend/cdp-discovery.ts`, 9222–9232, QwenPaw `cdp/discovery.py` port).
+- **P11** managed identity (`identity: 'managed'`): plugin-owned Chrome on a
+  persistent profile driven over raw CDP (`backend/managed-cdp.ts` +
+  `managed-cdp-launch.ts`, QwenPaw `control_link/cdp/` port) — DevToolsActivePort
+  endpoint discovery (port 0 = auto, parallel-safe), per-session CDP connection
+  so one session's close never disturbs another's, ref-counted release reaps the
+  owned Chrome once the last session on a profile lets go (crashed children are
+  detected and replaced on the next connect).
 
 Timeout/cancel semantics: a per-call abort (tool `timeoutMs` budget or user
 cancel) cuts the run short with a governed `[RETRYABLE]` error and **preserves
@@ -181,6 +191,7 @@ To run a single suite directly:
 npx tsx test/e2e-minloop.ts             # offline: open→snapshot→act→verify + governed errors
 npx tsx test/e2e-identity.ts            # offline: resolveIdentitySelection/avatarProfileDirFor unit asserts
 npx tsx test/e2e-managed-chromium.ts    # offline: lazy Chromium gate + CDP port discovery
+npx tsx test/e2e-managed-cdp.ts         # offline: managed identity (launch, ref-count, release)
 npx tsx test/e2e-plugin-integration.ts  # plugin apply + tool dispatch-path output-schema guard
 npx tsx test/e2e-abort-preserve.ts      # offline: abort/timeout preserves the browser session
 npx tsx test/e2e-network.ts             # online: open example.com→click link→re-snapshot

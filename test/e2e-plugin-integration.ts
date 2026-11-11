@@ -53,6 +53,7 @@ const config: BrowserToolConfig = {
   headless: true,
   executablePath: undefined,
   cdpUrl: undefined,
+  managedCdpPort: 0,
   args: [],
   execTimeoutMs: 120_000,
   closeOrphanTabs: false,

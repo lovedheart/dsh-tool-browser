@@ -16,10 +16,12 @@ import type { KernelManager } from './types.ts';
 export declare function resolveHeadless(value: boolean | 'auto'): boolean;
 /** Outcome of mapping a requested identity onto a concrete backend choice. */
 export interface IdentitySelection {
-    readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
+    readonly backend: 'playwright' | 'chrome' | 'chrome-extension' | 'managed';
     readonly userDataDir?: string;
     /** The concrete identity in effect ('auto' never survives resolution). */
-    readonly identity: 'user' | 'avatar' | 'guest';
+    readonly identity: 'user' | 'avatar' | 'guest' | 'managed';
+    /** identity 'managed': debug port for the owned Chrome (0 = auto). */
+    readonly managedCdpPort?: number;
 }
 /**
  * Maps QwenPaw's identity model onto this plugin's backends (ported from
@@ -32,19 +34,24 @@ export interface IdentitySelection {
  *             implies guest) — fully backward-compatible with pre-identity configs.
  * Pure function (bridge state passed in) so tests don't need a browser.
  */
-export declare function resolveIdentitySelection(cfg: Pick<ManagerConfig, 'backend' | 'userDataDir'>, identity: 'auto' | 'user' | 'avatar' | 'guest' | undefined, bridgeConnected: boolean, avatarProfileDir: string): IdentitySelection;
+export declare function resolveIdentitySelection(cfg: Pick<ManagerConfig, 'backend' | 'userDataDir'>, identity: 'auto' | 'user' | 'avatar' | 'guest' | 'managed' | undefined, bridgeConnected: boolean, avatarProfileDir: string): IdentitySelection;
 /** Per-workspace persistent profile dir for the 'avatar' identity. */
 export declare function avatarProfileDirFor(workspaceId: string): string;
+/** Per-workspace persistent profile dir for the 'managed' identity
+ * (QwenPaw managed_cdp's `~/.qwenpaw/browser/cdp/chrome-profile` analogue). */
+export declare function managedProfileDirFor(workspaceId: string): string;
 /** Configuration for {@link createKernelManager}. */
 export interface ManagerConfig {
-    readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
+    readonly backend: 'playwright' | 'chrome' | 'chrome-extension' | 'managed';
     /**
      * QwenPaw-ported identity layer: 'user' forces the real Chrome, 'avatar' a
      * persistent standalone profile, 'guest' an ephemeral one; 'auto' (default)
      * picks 'user' when the extension bridge is connected and otherwise defers
      * to `backend`.
      */
-    readonly identity?: 'auto' | 'user' | 'avatar' | 'guest';
+    readonly identity?: 'auto' | 'user' | 'avatar' | 'guest' | 'managed';
+    /** identity 'managed': debug port for the owned Chrome (0 = Chrome picks one). */
+    readonly managedCdpPort?: number;
     /** true | false | 'auto' — 'auto' is resolved at connect time. */
     readonly headless: boolean | 'auto';
     readonly executablePath?: string;

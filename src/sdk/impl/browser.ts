@@ -25,7 +25,7 @@ export class BrowserImpl implements Browser {
   private connected = true; // kernel pre-connects the session
   private onHandoff: ((reason: string, instructions: string) => void) | undefined;
   private onClose: (() => void) | undefined;
-  private readonly identity: 'user' | 'avatar' | 'guest';
+  private readonly identity: 'user' | 'avatar' | 'guest' | 'managed';
 
   constructor(session: BackendSession, hooks?: BrowserHooks) {
     this.session = session;

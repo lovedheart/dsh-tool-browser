@@ -129,7 +129,7 @@ export interface LocatorSpec {
 }
 /** Launch/connect options for a backend. */
 export interface BackendOptions {
-    readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
+    readonly backend: 'playwright' | 'chrome' | 'chrome-extension' | 'managed';
     /**
      * Already-resolved headless flag. Callers (the KernelManager) resolve a
      * config-level 'auto' to a concrete boolean before constructing this, so the
@@ -147,8 +147,10 @@ export interface BackendOptions {
         width: number;
         height: number;
     };
-    /** Persistent profile dir (playwright backend only; enables persistent context). */
+    /** Persistent profile dir (playwright + managed backends; enables persistent context). */
     readonly userDataDir?: string;
+    /** managed backend: fixed debug port for the owned Chrome (0 = Chrome picks one). */
+    readonly managedCdpPort?: number;
     /** Workspace dir where screenshots / overflow output are written. */
     readonly workspaceDir: string;
 }
@@ -163,9 +165,14 @@ export interface BackendSession {
     isHeadless(): boolean;
     close(): Promise<void>;
 }
-/** Factory the KernelManager calls to bring up a backend session. */
+/** Factory the KernelManager calls to bring up a backend session.
+ * `release` is called by the manager when a cached kernel is evicted (idle TTL,
+ * session teardown) — i.e. when the LAST session this link backed goes away.
+ * Sessions also close themselves via `BackendSession.close()`; the link's
+ * managed resources must survive that and only die on `release`. */
 export interface ControlLink {
     connect(opts: BackendOptions): Promise<BackendSession>;
+    release?(): Promise<void>;
     /** Diagnostics for bridge_disconnected self-test rendering. */
     selfTest?(): Promise<Record<string, unknown>>;
 }

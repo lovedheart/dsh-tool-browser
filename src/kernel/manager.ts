@@ -33,10 +33,12 @@ export function resolveHeadless(value: boolean | 'auto'): boolean {
 
 /** Outcome of mapping a requested identity onto a concrete backend choice. */
 export interface IdentitySelection {
-  readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
+  readonly backend: 'playwright' | 'chrome' | 'chrome-extension' | 'managed';
   readonly userDataDir?: string;
   /** The concrete identity in effect ('auto' never survives resolution). */
-  readonly identity: 'user' | 'avatar' | 'guest';
+  readonly identity: 'user' | 'avatar' | 'guest' | 'managed';
+  /** identity 'managed': debug port for the owned Chrome (0 = auto). */
+  readonly managedCdpPort?: number;
 }
 
 /**
@@ -52,7 +54,7 @@ export interface IdentitySelection {
  */
 export function resolveIdentitySelection(
   cfg: Pick<ManagerConfig, 'backend' | 'userDataDir'>,
-  identity: 'auto' | 'user' | 'avatar' | 'guest' | undefined,
+  identity: 'auto' | 'user' | 'avatar' | 'guest' | 'managed' | undefined,
   bridgeConnected: boolean,
   avatarProfileDir: string,
 ): IdentitySelection {
@@ -72,6 +74,10 @@ export function resolveIdentitySelection(
       return { backend: 'playwright', userDataDir: cfg.userDataDir ?? avatarProfileDir, identity: 'avatar' };
     case 'guest':
       return { backend: 'playwright', userDataDir: undefined, identity: 'guest' };
+    case 'managed':
+      // QwenPaw managed_cdp parity: standalone Chrome owned by the plugin,
+      // persistent profile, driven over CDP (survives per-session close).
+      return { backend: 'managed', userDataDir: cfg.userDataDir, identity: 'managed' };
     default: // 'auto'
       if (bridgeConnected) return { backend: 'chrome-extension', userDataDir: cfg.userDataDir, identity: 'user' };
       return {
@@ -84,20 +90,31 @@ export function resolveIdentitySelection(
 
 /** Per-workspace persistent profile dir for the 'avatar' identity. */
 export function avatarProfileDirFor(workspaceId: string): string {
-  const safe = workspaceId.replace(/[^A-Za-z0-9._-]+/g, '_');
-  return join(homedir(), '.dsh', 'tool-browser', 'avatar', safe);
+  return join(homedir(), '.dsh', 'tool-browser', 'avatar', safeSegment(workspaceId));
+}
+
+/** Per-workspace persistent profile dir for the 'managed' identity
+ * (QwenPaw managed_cdp's `~/.qwenpaw/browser/cdp/chrome-profile` analogue). */
+export function managedProfileDirFor(workspaceId: string): string {
+  return join(homedir(), '.dsh', 'tool-browser', 'managed', safeSegment(workspaceId));
+}
+
+function safeSegment(value: string): string {
+  return value.replace(/[^A-Za-z0-9._-]+/g, '_');
 }
 
 /** Configuration for {@link createKernelManager}. */
 export interface ManagerConfig {
-  readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
+  readonly backend: 'playwright' | 'chrome' | 'chrome-extension' | 'managed';
   /**
    * QwenPaw-ported identity layer: 'user' forces the real Chrome, 'avatar' a
    * persistent standalone profile, 'guest' an ephemeral one; 'auto' (default)
    * picks 'user' when the extension bridge is connected and otherwise defers
    * to `backend`.
    */
-  readonly identity?: 'auto' | 'user' | 'avatar' | 'guest';
+  readonly identity?: 'auto' | 'user' | 'avatar' | 'guest' | 'managed';
+  /** identity 'managed': debug port for the owned Chrome (0 = Chrome picks one). */
+  readonly managedCdpPort?: number;
   /** true | false | 'auto' — 'auto' is resolved at connect time. */
   readonly headless: boolean | 'auto';
   readonly executablePath?: string;
@@ -118,6 +135,8 @@ export interface ManagerConfig {
 
 interface CacheEntry {
   kernel: KernelImpl;
+  /** The backend link this kernel's session came from; evicted kernels release it. */
+  link: ControlLink;
   lastUsed: number;
   pinned: boolean;
 }
@@ -159,9 +178,17 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
       }
     }
     const sel = resolveIdentitySelection(cfg, cfg.identity, bridgeConnected, avatarProfileDirFor(owner.workspace_id));
+    // identity 'managed' implies the per-workspace managed profile dir unless
+    // the operator pinned one (or switched managed to attach-only via cdpUrl).
+    const userDataDir =
+      sel.identity === 'managed' && !sel.userDataDir && !cfg.cdpUrl
+        ? managedProfileDirFor(owner.workspace_id)
+        : sel.userDataDir;
 
     let link: ControlLink;
-    if (sel.backend === 'chrome') {
+    if (sel.backend === 'managed') {
+      link = (await import('../backend/managed-cdp.ts')).createManagedControlLink(ownerKey(owner));
+    } else if (sel.backend === 'chrome') {
       link = (await import('../backend/chrome-cdp.ts')).createChromeControlLink();
     } else if (sel.backend === 'chrome-extension') {
       link = (await import('../backend/chrome-extension.ts')).createChromeExtensionControlLink({
@@ -180,7 +207,8 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
       args: cfg.args,
       proxy: cfg.proxy,
       viewport: cfg.viewport,
-      userDataDir: sel.userDataDir,
+      userDataDir,
+      managedCdpPort: cfg.managedCdpPort,
       workspaceDir: cfg.workspaceDir(),
     });
 
@@ -202,7 +230,7 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     const kernel = new KernelImpl(owner, session, sandbox);
     kernelRef = kernel;
 
-    cache.set(key, { kernel, lastUsed: Date.now(), pinned: false });
+    cache.set(key, { kernel, link, lastUsed: Date.now(), pinned: false });
     return kernel;
   }
 
@@ -247,6 +275,7 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
       if (!entry.pinned && now - entry.lastUsed > cfg.idleTtlMs) {
         cache.delete(key);
         await entry.kernel.close().catch(() => undefined);
+        await entry.link.release?.().catch(() => undefined);
       }
     }
   }
@@ -273,6 +302,7 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     if (entry) {
       cache.delete(key);
       await entry.kernel.close().catch(() => undefined);
+      await entry.link.release?.().catch(() => undefined);
     }
   }
 
@@ -282,6 +312,7 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
       if (key.startsWith(prefix)) {
         cache.delete(key);
         await entry.kernel.close().catch(() => undefined);
+        await entry.link.release?.().catch(() => undefined);
       }
     }
   }
@@ -291,6 +322,7 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
       cache.delete(key);
       // Best-effort synchronous teardown: fire close without awaiting.
       void entry.kernel.close().catch(() => undefined);
+      void entry.link.release?.().catch(() => undefined);
     }
   }
 
@@ -298,6 +330,7 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     for (const [key, entry] of [...cache.entries()]) {
       cache.delete(key);
       await entry.kernel.close().catch(() => undefined);
+      await entry.link.release?.().catch(() => undefined);
     }
   }
 

@@ -26,7 +26,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
      */
     headless: z<boolean | "auto", boolean | "auto", "defined">;
     /** Identity layer on top of `backend` (QwenPaw parity); 'auto' keeps backend behavior. */
-    identity: z<"auto" | "user" | "avatar" | "guest", "auto" | "user" | "avatar" | "guest", "defined">;
+    identity: z<"auto" | "user" | "avatar" | "guest" | "managed", "auto" | "user" | "avatar" | "guest" | "managed", "defined">;
     /** Optional custom browser binary path (playwright backend). */
     executablePath: z<string | undefined, string | undefined, "plain">;
     /** For backend=chrome: the user browser's CDP endpoint (e.g. http://127.0.0.1:9222). */
@@ -53,11 +53,18 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
         height: z<number, number, "plain">;
     }>> | undefined, "plain">;
     /**
-     * Persistent profile dir (playwright backend). When set the session uses
+     * Persistent profile dir (playwright backend; identity 'managed' defaults it
+     * to ~/.dsh/tool-browser/managed/<workspace>). When set the session uses
      * `chromium.launchPersistentContext` so cookies/logins survive across
      * restarts; otherwise a fresh ephemeral context is created.
      */
     userDataDir: z<string | undefined, string | undefined, "plain">;
+    /**
+     * identity 'managed': debug port for the owned Chrome (0 = Chrome picks a
+     * free one and reports it via DevToolsActivePort — the default, safe for
+     * parallel launches). `cdpUrl` instead switches managed to attach-only.
+     */
+    managedCdpPort: z<number, number, "defined">;
     /** Cooperative per-call budget in ms (enforced by dsh-tool-call-timeout-policy). */
     execTimeoutMs: z<number, number, "defined">;
     /** Reclaim an idle (unpinned) kernel after this many ms. */
@@ -89,7 +96,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
      */
     headless: z<boolean | "auto", boolean | "auto", "defined">;
     /** Identity layer on top of `backend` (QwenPaw parity); 'auto' keeps backend behavior. */
-    identity: z<"auto" | "user" | "avatar" | "guest", "auto" | "user" | "avatar" | "guest", "defined">;
+    identity: z<"auto" | "user" | "avatar" | "guest" | "managed", "auto" | "user" | "avatar" | "guest" | "managed", "defined">;
     /** Optional custom browser binary path (playwright backend). */
     executablePath: z<string | undefined, string | undefined, "plain">;
     /** For backend=chrome: the user browser's CDP endpoint (e.g. http://127.0.0.1:9222). */
@@ -116,11 +123,18 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
         height: z<number, number, "plain">;
     }>> | undefined, "plain">;
     /**
-     * Persistent profile dir (playwright backend). When set the session uses
+     * Persistent profile dir (playwright backend; identity 'managed' defaults it
+     * to ~/.dsh/tool-browser/managed/<workspace>). When set the session uses
      * `chromium.launchPersistentContext` so cookies/logins survive across
      * restarts; otherwise a fresh ephemeral context is created.
      */
     userDataDir: z<string | undefined, string | undefined, "plain">;
+    /**
+     * identity 'managed': debug port for the owned Chrome (0 = Chrome picks a
+     * free one and reports it via DevToolsActivePort — the default, safe for
+     * parallel launches). `cdpUrl` instead switches managed to attach-only.
+     */
+    managedCdpPort: z<number, number, "defined">;
     /** Cooperative per-call budget in ms (enforced by dsh-tool-call-timeout-policy). */
     execTimeoutMs: z<number, number, "defined">;
     /** Reclaim an idle (unpinned) kernel after this many ms. */
@@ -140,7 +154,9 @@ export type BrowserToolConfig = {
     /** 'auto' resolves at connect time (container/no-display → headless). */
     headless: boolean | 'auto';
     /** Resolved browser identity for this profile; see the Config docstring. */
-    identity: 'auto' | 'user' | 'avatar' | 'guest';
+    identity: 'auto' | 'user' | 'avatar' | 'guest' | 'managed';
+    /** identity 'managed': fixed debug port for the owned Chrome (0 = auto). */
+    managedCdpPort: number;
     executablePath?: string;
     cdpUrl?: string;
     args: string[];

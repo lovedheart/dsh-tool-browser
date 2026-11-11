@@ -61,6 +61,7 @@ export function registerBrowserTool(ctx: any, config: BrowserToolConfig): void {
     proxy: config.proxy,
     viewport: config.viewport,
     userDataDir: config.userDataDir,
+    managedCdpPort: config.managedCdpPort,
     idleTtlMs: config.idleTtlMs,
     workspaceDir: () => process.cwd(),
   });
