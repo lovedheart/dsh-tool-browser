@@ -130,7 +130,7 @@ skills/browser/SKILL.md the model-facing SDK manual
 ## License
 
 Apache-2.0. Portions ported from
-[QwenPaw](https://github.com/yuanxs21/QwenPaw) (Apache-2.0): the identity model,
+[QwenPaw](https://github.com/agentscope-ai/QwenPaw) (Apache-2.0): the identity model,
 the governed error taxonomy, the managed-Chromium provisioning gate, and CDP
 endpoint discovery.
 
