@@ -122,8 +122,17 @@ src/sdk/                Browser / Page / LocatorView (+ impl/)
 src/backend/            ControlLink port + playwright backend
 src/governance/         BrowserError + teaching-style error text
 src/wire/               owner derivation + result rendering
+src/backend/managed-chromium.ts  lazy Chromium install gate (P10)
+src/backend/cdp-discovery.ts     CDP port scanner for backend=chrome (P10)
 skills/browser/SKILL.md the model-facing SDK manual
 ```
+
+## License
+
+Apache-2.0. Portions ported from
+[QwenPaw](https://github.com/yuanxs21/QwenPaw) (Apache-2.0): the identity model,
+the governed error taxonomy, the managed-Chromium provisioning gate, and CDP
+endpoint discovery.
 
 ## Status
 

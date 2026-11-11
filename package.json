@@ -32,7 +32,7 @@
     "setup:peers": "bash setup-peers.sh",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-system-prompt": ">=0.1.1-rc.1 <0.3",
