@@ -34,7 +34,7 @@ the session was reset, re-run `await Browser.connect()`.
 | `await browser.pages()` | list of page refs `{id,url,title,active}` |
 | `await browser.switchPage(ref)` | make a page ref active |
 | `await browser.closePage(ref)` | close a page ref |
-| `await browser.sessionStatus()` | `{owner,variant,context,connected}` |
+| `await browser.sessionStatus()` | `{owner,variant,context,identity,connected}` — `identity`: `'user'` (real Chrome), `'avatar'` (persistent profile), `'guest'` (incognito) |
 | `await browser.handoff(reason, instructions?)` | STOP for a human (captcha/login/2FA) |
 
 ## Page (operation)

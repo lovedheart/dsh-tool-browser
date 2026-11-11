@@ -25,12 +25,14 @@ export class BrowserImpl implements Browser {
   private connected = true; // kernel pre-connects the session
   private onHandoff: ((reason: string, instructions: string) => void) | undefined;
   private onClose: (() => void) | undefined;
+  private readonly identity: 'user' | 'avatar' | 'guest';
 
   constructor(session: BackendSession, hooks?: BrowserHooks) {
     this.session = session;
     this.owner = hooks?.owner ?? { workspace_id: '', session_id: '' };
     this.onHandoff = hooks?.onHandoff;
     this.onClose = hooks?.onClose;
+    this.identity = hooks?.identity ?? 'guest';
   }
 
   /** Connect. The session is pre-connected by the kernel; this is a no-op check. */
@@ -78,6 +80,7 @@ export class BrowserImpl implements Browser {
       owner: this.owner,
       variant: this.session.variant,
       context: 'auto',
+      identity: this.identity,
       connected: this.connected,
     };
   }

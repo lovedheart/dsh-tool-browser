@@ -9,6 +9,12 @@
 #   backend            - 'playwright' (managed Chromium) | 'chrome' (user CDP)
 #                        | 'chrome-extension' (user Chrome via the DSH browser
 #                        extension + Native Messaging; run setup once)
+#   identity           - QwenPaw identity model: 'auto' (default; 'user' when the
+#                        extension bridge is connected, else `backend` stands) |
+#                        'user' (real Chrome; actionable ASK_HUMAN when the bridge
+#                        is down) | 'avatar' (standalone persistent profile —
+#                        sign-ins survive under ~/.dsh/tool-browser/avatar/<ws>) |
+#                        'guest' (standalone incognito)
 #   headless           - true | false | 'auto' (default true; 'auto' = headless
 #                        in a container or when no display server is found)
 #   executablePath     - optional custom browser binary path

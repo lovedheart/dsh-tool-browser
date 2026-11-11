@@ -48,6 +48,11 @@ in your profile's `cordis.patch.yml`:
     - id: tool-browser
       config:
         backend: playwright     # or 'chrome' (CDP port) or 'chrome-extension'
+        identity: auto          # QwenPaw identity model: 'auto' | 'user' (real Chrome via
+                                #   extension; ASK_HUMAN with a clear fix when not connected)
+                                # | 'avatar' (standalone persistent profile, sign-ins survive)
+                                # | 'guest' (standalone incognito). 'auto' = 'user' when the
+                                #   extension bridge is connected, otherwise `backend` stands.
         headless: false         # required for handoff(); 'auto' = headless in a
                                 # container / when no display server is found
         cdpUrl: http://127.0.0.1:9222   # only for backend=chrome

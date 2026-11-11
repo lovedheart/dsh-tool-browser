@@ -21,6 +21,15 @@ const viewportShape = z.object({ width: z.number(), height: z.number() });
 const optionalViewport = z.union([viewportShape, z.const(undefined)]);
 /** Headless launch; 'auto' = headless in containers or when no display server is found. */
 const headlessEnum = z.union([z.const(true), z.const(false), z.const('auto')]);
+/**
+ * Browser identity (ported from QwenPaw `browser.identity`):
+ * 'user' = your real Chrome via the extension bridge (your sign-ins);
+ * 'avatar' = standalone browser on a persistent profile (sign-ins survive);
+ * 'guest' = standalone incognito, discarded on close;
+ * 'auto' = 'user' when the extension bridge is connected, else the `backend`
+ * config decides (backward-compatible default).
+ */
+const identityEnum = z.union([z.const('auto'), z.const('user'), z.const('avatar'), z.const('guest')]);
 
 export const Config = z.object({
   /** Register the browser tool. */
@@ -39,6 +48,8 @@ export const Config = z.object({
    * headed session.
    */
   headless: headlessEnum.default(true),
+  /** Identity layer on top of `backend` (QwenPaw parity); 'auto' keeps backend behavior. */
+  identity: identityEnum.default('auto'),
   /** Optional custom browser binary path (playwright backend). */
   executablePath: optionalString,
   /** For backend=chrome: the user browser's CDP endpoint (e.g. http://127.0.0.1:9222). */
@@ -83,6 +94,8 @@ export type BrowserToolConfig = {
   backend: 'playwright' | 'chrome' | 'chrome-extension';
   /** 'auto' resolves at connect time (container/no-display → headless). */
   headless: boolean | 'auto';
+  /** Resolved browser identity for this profile; see the Config docstring. */
+  identity: 'auto' | 'user' | 'avatar' | 'guest';
   executablePath?: string;
   cdpUrl?: string;
   args: string[];

@@ -49,6 +49,7 @@ const exec = { signal: new AbortController().signal, agent: { session: { id: 'in
 const config: BrowserToolConfig = {
   enabled: true,
   backend: 'playwright',
+  identity: 'auto',
   headless: true,
   executablePath: undefined,
   cdpUrl: undefined,

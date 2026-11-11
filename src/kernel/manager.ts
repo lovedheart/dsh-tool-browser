@@ -9,6 +9,9 @@
  */
 
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { BrowserError } from '../governance/errors.ts';
 import type { Owner } from '../sdk/contracts.ts';
 import type { BrowserHooks } from '../sdk/facade.ts';
 import type { ControlLink } from '../backend/ports.ts';
@@ -28,9 +31,73 @@ export function resolveHeadless(value: boolean | 'auto'): boolean {
   return !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY; // no display server → headless
 }
 
+/** Outcome of mapping a requested identity onto a concrete backend choice. */
+export interface IdentitySelection {
+  readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
+  readonly userDataDir?: string;
+  /** The concrete identity in effect ('auto' never survives resolution). */
+  readonly identity: 'user' | 'avatar' | 'guest';
+}
+
+/**
+ * Maps QwenPaw's identity model onto this plugin's backends (ported from
+ * QwenPaw `browser.identity`):
+ *   user   -> the real Chrome via the extension bridge (needs it connected);
+ *   avatar -> standalone browser on a persistent profile dir (sign-ins survive);
+ *   guest  -> standalone incognito (no profile dir);
+ *   auto   -> 'user' when the bridge is connected, otherwise the configured
+ *             backend stands ('chrome'/'chrome-extension' imply user; 'playwright'
+ *             implies guest) — fully backward-compatible with pre-identity configs.
+ * Pure function (bridge state passed in) so tests don't need a browser.
+ */
+export function resolveIdentitySelection(
+  cfg: Pick<ManagerConfig, 'backend' | 'userDataDir'>,
+  identity: 'auto' | 'user' | 'avatar' | 'guest' | undefined,
+  bridgeConnected: boolean,
+  avatarProfileDir: string,
+): IdentitySelection {
+  switch (identity ?? 'auto') {
+    case 'user':
+      if (!bridgeConnected) {
+        throw new BrowserError({
+          category: 'ASK_HUMAN',
+          cause: 'bridge_disconnected',
+          reason: 'identity "user" needs your real Chrome: connect the DSH browser extension '
+            + '(dsh-chrome) — or switch to identity "avatar" (persistent standalone profile) / "guest".',
+          suggested_action: 'ask_human',
+        });
+      }
+      return { backend: 'chrome-extension', userDataDir: cfg.userDataDir, identity: 'user' };
+    case 'avatar':
+      return { backend: 'playwright', userDataDir: cfg.userDataDir ?? avatarProfileDir, identity: 'avatar' };
+    case 'guest':
+      return { backend: 'playwright', userDataDir: undefined, identity: 'guest' };
+    default: // 'auto'
+      if (bridgeConnected) return { backend: 'chrome-extension', userDataDir: cfg.userDataDir, identity: 'user' };
+      return {
+        backend: cfg.backend,
+        userDataDir: cfg.userDataDir,
+        identity: cfg.backend === 'playwright' ? 'guest' : 'user',
+      };
+  }
+}
+
+/** Per-workspace persistent profile dir for the 'avatar' identity. */
+export function avatarProfileDirFor(workspaceId: string): string {
+  const safe = workspaceId.replace(/[^A-Za-z0-9._-]+/g, '_');
+  return join(homedir(), '.dsh', 'tool-browser', 'avatar', safe);
+}
+
 /** Configuration for {@link createKernelManager}. */
 export interface ManagerConfig {
   readonly backend: 'playwright' | 'chrome' | 'chrome-extension';
+  /**
+   * QwenPaw-ported identity layer: 'user' forces the real Chrome, 'avatar' a
+   * persistent standalone profile, 'guest' an ephemeral one; 'auto' (default)
+   * picks 'user' when the extension bridge is connected and otherwise defers
+   * to `backend`.
+   */
+  readonly identity?: 'auto' | 'user' | 'avatar' | 'guest';
   /** true | false | 'auto' — 'auto' is resolved at connect time. */
   readonly headless: boolean | 'auto';
   readonly executablePath?: string;
@@ -79,10 +146,24 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     // before those modules are present/installed.
     const { createBrowserFactory } = await import('../sdk/impl/browser.ts');
 
+    // Identity resolution (QwenPaw port): only consult the bridge when it can
+    // matter, and degrade gracefully when the bridge module was never mounted
+    // (non-web deployments never import it).
+    let bridgeConnected = false;
+    if ((cfg.identity ?? 'auto') === 'auto' || cfg.identity === 'user') {
+      try {
+        const m = await import('../backend/ext/bridge.ts');
+        bridgeConnected = m.nmBridge.status().connected === true;
+      } catch {
+        /* bridge not mounted: treat as disconnected */
+      }
+    }
+    const sel = resolveIdentitySelection(cfg, cfg.identity, bridgeConnected, avatarProfileDirFor(owner.workspace_id));
+
     let link: ControlLink;
-    if (cfg.backend === 'chrome') {
+    if (sel.backend === 'chrome') {
       link = (await import('../backend/chrome-cdp.ts')).createChromeControlLink();
-    } else if (cfg.backend === 'chrome-extension') {
+    } else if (sel.backend === 'chrome-extension') {
       link = (await import('../backend/chrome-extension.ts')).createChromeExtensionControlLink({
         ownerId: owner.session_id,
         workspaceId: owner.workspace_id,
@@ -92,14 +173,14 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     }
     const headless = resolveHeadless(cfg.headless);
     const session = await link.connect({
-      backend: cfg.backend,
+      backend: sel.backend,
       headless,
       executablePath: cfg.executablePath,
       cdpUrl: cfg.cdpUrl,
       args: cfg.args,
       proxy: cfg.proxy,
       viewport: cfg.viewport,
-      userDataDir: cfg.userDataDir,
+      userDataDir: sel.userDataDir,
       workspaceDir: cfg.workspaceDir(),
     });
 
@@ -111,6 +192,7 @@ export function createKernelManager(cfg: ManagerConfig): KernelManager {
     let kernelRef: KernelImpl | undefined;
     const hooks: BrowserHooks = {
       onHandoff: (reason, instructions) => sandboxRef?.recordHandoff(reason, instructions),
+      identity: sel.identity,
       onClose: () => kernelRef?.markClosed(),
       owner,
     };

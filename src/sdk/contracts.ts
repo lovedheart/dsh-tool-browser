@@ -54,6 +54,7 @@ export interface SessionStatus {
   readonly owner: { workspace_id: string; session_id: string };
   readonly variant: string; // resolved backend, e.g. 'playwright' | 'chrome'
   readonly context: string; // 'auto' | explicit
+  readonly identity: string; // resolved browser identity: 'user' | 'avatar' | 'guest'
   readonly connected: boolean;
 }
 

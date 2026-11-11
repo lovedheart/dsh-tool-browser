@@ -48,6 +48,8 @@ export interface BrowserHooks {
   onHandoff?: (reason: string, instructions: string) => void;
   /** The owner this session belongs to (surfaced by sessionStatus()). */
   owner?: Owner;
+  /** Resolved browser identity in effect (QwenPaw port; surfaced by sessionStatus()). */
+  identity?: 'user' | 'avatar' | 'guest';
   /** Fired after close(); lets the kernel evict itself from the manager cache. */
   onClose?: () => void;
 }
