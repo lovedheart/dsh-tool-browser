@@ -22,6 +22,21 @@ login/captcha/2FA. Full API: `skills/browser/SKILL.md`.
 
 - `playwright` (default) — managed Chromium via the `playwright` package.
 - `chrome` — the user's real browser over CDP (`cdpUrl`). *(landed in P5)*
+- `chrome-extension` — the user's on-screen Chrome via the bundled MV3
+  extension + Native Messaging bridge, no debug flag. *(see below)*
+
+## Identity (whose browser?)
+
+`identity` picks the browser persona, independently of `backend`:
+
+| value | browser | profile / sign-ins |
+|---|---|---|
+| `user` | your real Chrome (forces `chrome-extension`; ASK_HUMAN with a fix when the bridge is down) | your existing Chrome profile |
+| `avatar` | managed Chromium | persistent dir `~/.dsh/tool-browser/avatar/<workspace>` (sign-ins survive) |
+| `guest` | managed Chromium | incognito, discarded on close |
+| `auto` (default) | `user` when the extension bridge is connected, otherwise `backend` stands (backward compatible) | — |
+
+The resolved identity is surfaced as `sessionStatus().identity`.
 
 ## Install (as a DSH profile plugin)
 
@@ -44,30 +59,25 @@ The tool is mounted by `cordis.patch.yml` (row id `tool-browser`). Override conf
 in your profile's `cordis.patch.yml`:
 
 ```yaml
-- replace:
-    - id: tool-browser
-      config:
-        backend: playwright     # or 'chrome' (CDP port) or 'chrome-extension'
-        identity: auto          # QwenPaw identity model: 'auto' | 'user' (real Chrome via
-                                #   extension; ASK_HUMAN with a clear fix when not connected)
-                                # | 'avatar' (standalone persistent profile, sign-ins survive)
-                                # | 'guest' (standalone incognito). 'auto' = 'user' when the
-                                #   extension bridge is connected, otherwise `backend` stands.
-        headless: auto          # default; headed on a desktop (required for
-                                # handoff()), headless in a container / when no
-                                # display server is found
-        cdpUrl: http://127.0.0.1:9222   # only for backend=chrome
-        closeOrphanTabs: false  # only for backend=chrome-extension: auto-close
-                                # DSH-created tabs whose owner is gone on
-                                # reconnect (default: flag only, never close)
-        args: ['--no-sandbox']  # extra Chromium launch flags (playwright only)
-        proxy: http://127.0.0.1:7890    # proxy server (playwright only)
-        viewport: { width: 1280, height: 800 }  # new contexts (playwright only)
-        userDataDir: /path/to/profile          # persistent profile (playwright only)
-        execTimeoutMs: 120000
-        idleTtlMs: 600000
-        maxOutputChars: 100000
+# in your profile's cordis.patch.yml — a same-id row replaces the plugin's
+- id: tool-browser
+  name: 'dsh-tool-browser'
+  config:
+    backend: playwright     # or 'chrome' (CDP port) or 'chrome-extension'
+    identity: auto          # 'auto' | 'user' | 'avatar' | 'guest' (see Identity above)
+    headless: auto          # default; headed on a desktop (required for
+                            # handoff()), headless in a container / no display
+    closeOrphanTabs: false  # chrome-extension only: auto-close DSH-created
+                            # tabs whose owner is gone (default: flag only)
+    execTimeoutMs: 120000
+    idleTtlMs: 600000
+    maxOutputChars: 100000
 ```
+
+Playwright-launch-only launch knobs: `args`, `proxy`, `viewport`,
+`executablePath`, `userDataDir` (an explicit `userDataDir` wins over the
+`avatar` default dir). `cdpUrl: http://127.0.0.1:9222` applies to
+`backend: chrome` only.
 
 ### Chrome-extension backend (drive the user's real Chrome, no debug flag)
 
@@ -122,7 +132,9 @@ P0–P7 implemented and verified:
 - **P7** overflow stdout spilling to a workspace file + real-network e2e.
 - **P8** snapshot structured elements (`ariaSnapshot` ai-mode → `Observation.elements`)
   + launch options `args`/`proxy`/`viewport`/`userDataDir` (persistent profile) +
-  `headless: 'auto'` (container/no-display → headless).
+  `headless: 'auto'` (container/no-display → headless; default).
+- **P9** QwenPaw identity model (`auto`/`user`/`avatar`/`guest`, resolved via
+  `resolveIdentitySelection()`, surfaced in `sessionStatus().identity`).
 
 Timeout/cancel semantics: a per-call abort (tool `timeoutMs` budget or user
 cancel) cuts the run short with a governed `[RETRYABLE]` error and **preserves
@@ -136,6 +148,9 @@ Verify:
 
 ```bash
 npx playwright install chromium
+./setup-peers.sh    # link dsh-tools/dsh-system-prompt to the installed harness
+                    # (re-run after `npm install` — it replaces those links)
+npm run build       # DSH loads dist/, not src/ — rebuild before restarting dsh
 npm test            # all e2e suites in order: minloop, integration, network, cdp
 npm run test:offline  # same, skipping the real-network suite (E2E_OFFLINE=1)
 npx tsc --noEmit
@@ -145,6 +160,7 @@ To run a single suite directly:
 
 ```bash
 npx tsx test/e2e-minloop.ts             # offline: open→snapshot→act→verify + governed errors
+npx tsx test/e2e-identity.ts            # offline: resolveIdentitySelection/avatarProfileDirFor unit asserts
 npx tsx test/e2e-plugin-integration.ts  # plugin apply + tool dispatch-path output-schema guard
 npx tsx test/e2e-abort-preserve.ts      # offline: abort/timeout preserves the browser session
 npx tsx test/e2e-network.ts             # online: open example.com→click link→re-snapshot
