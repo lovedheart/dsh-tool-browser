@@ -53,8 +53,9 @@ in your profile's `cordis.patch.yml`:
                                 # | 'avatar' (standalone persistent profile, sign-ins survive)
                                 # | 'guest' (standalone incognito). 'auto' = 'user' when the
                                 #   extension bridge is connected, otherwise `backend` stands.
-        headless: false         # required for handoff(); 'auto' = headless in a
-                                # container / when no display server is found
+        headless: auto          # default; headed on a desktop (required for
+                                # handoff()), headless in a container / when no
+                                # display server is found
         cdpUrl: http://127.0.0.1:9222   # only for backend=chrome
         closeOrphanTabs: false  # only for backend=chrome-extension: auto-close
                                 # DSH-created tabs whose owner is gone on

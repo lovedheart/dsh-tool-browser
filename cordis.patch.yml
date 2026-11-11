@@ -15,8 +15,9 @@
 #                        is down) | 'avatar' (standalone persistent profile —
 #                        sign-ins survive under ~/.dsh/tool-browser/avatar/<ws>) |
 #                        'guest' (standalone incognito)
-#   headless           - true | false | 'auto' (default true; 'auto' = headless
-#                        in a container or when no display server is found)
+#   headless           - true | false | 'auto' (default 'auto' = headed on a
+#                        desktop; headless in a container or when no display
+#                        server is found; handoff() needs headed)
 #   executablePath     - optional custom browser binary path
 #   cdpUrl             - for backend=chrome: the user browser's CDP endpoint
 #   args               - extra Chromium launch flags (playwright only)
@@ -32,7 +33,7 @@
       config:
         enabled: true
         backend: playwright
-        headless: true
+        headless: auto
         execTimeoutMs: 120000
         idleTtlMs: 600000
         maxOutputChars: 100000

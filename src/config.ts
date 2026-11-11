@@ -42,12 +42,13 @@ export const Config = z.object({
    */
   backend: backendEnum.default('playwright'),
   /**
-   * Headless launch. 'auto' resolves at connect time: headless inside a
+   * Headless launch; defaults to 'auto' so a desktop launch is headed (and
+   * handoff() can reach a human). Resolves at connect time: headless inside a
    * container (/.dockerenv) or when no display server is reachable, headed
    * otherwise (mirrors QwenPaw's `headless: auto`). handoff() requires a
-   * headed session.
+   * headed session, so set false explicitly if you force true here.
    */
-  headless: headlessEnum.default(true),
+  headless: headlessEnum.default('auto'),
   /** Identity layer on top of `backend` (QwenPaw parity); 'auto' keeps backend behavior. */
   identity: identityEnum.default('auto'),
   /** Optional custom browser binary path (playwright backend). */
