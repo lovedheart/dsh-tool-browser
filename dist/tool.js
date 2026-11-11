@@ -41,11 +41,13 @@ export function registerBrowserTool(ctx, config) {
     // Mount them through a nested plugin so `webServer` is a declared inject —
     // other backends never touch it (the strict Cordis ctx proxy rejects
     // undeclared properties, and non-web deployments have no such service).
-    if (config.backend === 'chrome-extension') {
+    // identity:'user' needs the bridge even when `backend` still says playwright.
+    if (config.backend === 'chrome-extension' || config.identity === 'user') {
         ctx.plugin(extensionBridgePlugin, config);
     }
     const manager = createKernelManager({
         backend: config.backend,
+        identity: config.identity,
         headless: config.headless,
         executablePath: config.executablePath,
         cdpUrl: config.cdpUrl,

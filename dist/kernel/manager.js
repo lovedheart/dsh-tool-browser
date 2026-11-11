@@ -8,6 +8,9 @@
  * yet installed.
  */
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { BrowserError } from "../governance/errors.js";
 import { KernelImpl } from "./kernel.js";
 import { Sandbox } from "./sandbox.js";
 /**
@@ -23,6 +26,49 @@ export function resolveHeadless(value) {
     if (existsSync('/.dockerenv'))
         return true; // container → headless
     return !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY; // no display server → headless
+}
+/**
+ * Maps QwenPaw's identity model onto this plugin's backends (ported from
+ * QwenPaw `browser.identity`):
+ *   user   -> the real Chrome via the extension bridge (needs it connected);
+ *   avatar -> standalone browser on a persistent profile dir (sign-ins survive);
+ *   guest  -> standalone incognito (no profile dir);
+ *   auto   -> 'user' when the bridge is connected, otherwise the configured
+ *             backend stands ('chrome'/'chrome-extension' imply user; 'playwright'
+ *             implies guest) — fully backward-compatible with pre-identity configs.
+ * Pure function (bridge state passed in) so tests don't need a browser.
+ */
+export function resolveIdentitySelection(cfg, identity, bridgeConnected, avatarProfileDir) {
+    switch (identity ?? 'auto') {
+        case 'user':
+            if (!bridgeConnected) {
+                throw new BrowserError({
+                    category: 'ASK_HUMAN',
+                    cause: 'bridge_disconnected',
+                    reason: 'identity "user" needs your real Chrome: connect the DSH browser extension '
+                        + '(dsh-chrome) — or switch to identity "avatar" (persistent standalone profile) / "guest".',
+                    suggested_action: 'ask_human',
+                });
+            }
+            return { backend: 'chrome-extension', userDataDir: cfg.userDataDir, identity: 'user' };
+        case 'avatar':
+            return { backend: 'playwright', userDataDir: cfg.userDataDir ?? avatarProfileDir, identity: 'avatar' };
+        case 'guest':
+            return { backend: 'playwright', userDataDir: undefined, identity: 'guest' };
+        default: // 'auto'
+            if (bridgeConnected)
+                return { backend: 'chrome-extension', userDataDir: cfg.userDataDir, identity: 'user' };
+            return {
+                backend: cfg.backend,
+                userDataDir: cfg.userDataDir,
+                identity: cfg.backend === 'playwright' ? 'guest' : 'user',
+            };
+    }
+}
+/** Per-workspace persistent profile dir for the 'avatar' identity. */
+export function avatarProfileDirFor(workspaceId) {
+    const safe = workspaceId.replace(/[^A-Za-z0-9._-]+/g, '_');
+    return join(homedir(), '.dsh', 'tool-browser', 'avatar', safe);
 }
 /** Stable cache key for one owner (workspace + session). */
 function ownerKey(owner) {
@@ -45,11 +91,25 @@ export function createKernelManager(cfg) {
         // Lazily import the control link + Browser SDK factory so the plugin can load
         // before those modules are present/installed.
         const { createBrowserFactory } = await import("../sdk/impl/browser.js");
+        // Identity resolution (QwenPaw port): only consult the bridge when it can
+        // matter, and degrade gracefully when the bridge module was never mounted
+        // (non-web deployments never import it).
+        let bridgeConnected = false;
+        if ((cfg.identity ?? 'auto') === 'auto' || cfg.identity === 'user') {
+            try {
+                const m = await import("../backend/ext/bridge.js");
+                bridgeConnected = m.nmBridge.status().connected === true;
+            }
+            catch {
+                /* bridge not mounted: treat as disconnected */
+            }
+        }
+        const sel = resolveIdentitySelection(cfg, cfg.identity, bridgeConnected, avatarProfileDirFor(owner.workspace_id));
         let link;
-        if (cfg.backend === 'chrome') {
+        if (sel.backend === 'chrome') {
             link = (await import("../backend/chrome-cdp.js")).createChromeControlLink();
         }
-        else if (cfg.backend === 'chrome-extension') {
+        else if (sel.backend === 'chrome-extension') {
             link = (await import("../backend/chrome-extension.js")).createChromeExtensionControlLink({
                 ownerId: owner.session_id,
                 workspaceId: owner.workspace_id,
@@ -60,14 +120,14 @@ export function createKernelManager(cfg) {
         }
         const headless = resolveHeadless(cfg.headless);
         const session = await link.connect({
-            backend: cfg.backend,
+            backend: sel.backend,
             headless,
             executablePath: cfg.executablePath,
             cdpUrl: cfg.cdpUrl,
             args: cfg.args,
             proxy: cfg.proxy,
             viewport: cfg.viewport,
-            userDataDir: cfg.userDataDir,
+            userDataDir: sel.userDataDir,
             workspaceDir: cfg.workspaceDir(),
         });
         // The browser and sandbox reference each other (sandbox needs the browser
@@ -78,6 +138,7 @@ export function createKernelManager(cfg) {
         let kernelRef;
         const hooks = {
             onHandoff: (reason, instructions) => sandboxRef?.recordHandoff(reason, instructions),
+            identity: sel.identity,
             onClose: () => kernelRef?.markClosed(),
             owner,
         };

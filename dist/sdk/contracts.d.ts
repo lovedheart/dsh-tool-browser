@@ -52,6 +52,7 @@ export interface SessionStatus {
     };
     readonly variant: string;
     readonly context: string;
+    readonly identity: string;
     readonly connected: boolean;
 }
 /** The owner scoping one stateful kernel (workspace + session). */

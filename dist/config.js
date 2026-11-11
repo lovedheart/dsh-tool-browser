@@ -20,6 +20,15 @@ const viewportShape = z.object({ width: z.number(), height: z.number() });
 const optionalViewport = z.union([viewportShape, z.const(undefined)]);
 /** Headless launch; 'auto' = headless in containers or when no display server is found. */
 const headlessEnum = z.union([z.const(true), z.const(false), z.const('auto')]);
+/**
+ * Browser identity (ported from QwenPaw `browser.identity`):
+ * 'user' = your real Chrome via the extension bridge (your sign-ins);
+ * 'avatar' = standalone browser on a persistent profile (sign-ins survive);
+ * 'guest' = standalone incognito, discarded on close;
+ * 'auto' = 'user' when the extension bridge is connected, else the `backend`
+ * config decides (backward-compatible default).
+ */
+const identityEnum = z.union([z.const('auto'), z.const('user'), z.const('avatar'), z.const('guest')]);
 export const Config = z.object({
     /** Register the browser tool. */
     enabled: z.boolean().default(true),
@@ -31,12 +40,15 @@ export const Config = z.object({
      */
     backend: backendEnum.default('playwright'),
     /**
-     * Headless launch. 'auto' resolves at connect time: headless inside a
+     * Headless launch; defaults to 'auto' so a desktop launch is headed (and
+     * handoff() can reach a human). Resolves at connect time: headless inside a
      * container (/.dockerenv) or when no display server is reachable, headed
      * otherwise (mirrors QwenPaw's `headless: auto`). handoff() requires a
-     * headed session.
+     * headed session, so set false explicitly if you force true here.
      */
-    headless: headlessEnum.default(true),
+    headless: headlessEnum.default('auto'),
+    /** Identity layer on top of `backend` (QwenPaw parity); 'auto' keeps backend behavior. */
+    identity: identityEnum.default('auto'),
     /** Optional custom browser binary path (playwright backend). */
     executablePath: optionalString,
     /** For backend=chrome: the user browser's CDP endpoint (e.g. http://127.0.0.1:9222). */

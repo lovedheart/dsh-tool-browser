@@ -14,6 +14,7 @@ export declare class BrowserImpl implements Browser {
     private connected;
     private onHandoff;
     private onClose;
+    private readonly identity;
     constructor(session: BackendSession, hooks?: BrowserHooks);
     /** Connect. The session is pre-connected by the kernel; this is a no-op check. */
     connect(): Promise<Browser>;
