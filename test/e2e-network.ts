@@ -32,12 +32,12 @@ try {
       surface = await page.currentSurface();
       // the single link on example.com
       linkCount = await page.getByRole("link").count();
-      return { hasExample: obs.text.includes("Example Domain"), url: surface.url, linkCount };
+      return { hasExample: obs.text.includes("documentation") || surface.title === "Example Domain", url: surface.url, linkCount };
     `,
   });
   check('no error on real open', r1.error === undefined, r1.error ? JSON.stringify(r1.error) : '');
   const v1 = JSON.parse(r1.value || 'null');
-  check('snapshot sees live page', v1?.hasExample === true, JSON.stringify(v1));
+  check('snapshot sees live page', v1?.hasExample === true, JSON.stringify(v1)); // example.com redesign 2026-09: body no longer repeats the title
   check('landed on example.com', v1?.url === 'https://example.com/', v1?.url);
   check('found the link', v1?.linkCount >= 1, 'linkCount=' + v1?.linkCount);
 
