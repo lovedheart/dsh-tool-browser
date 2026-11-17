@@ -58,6 +58,7 @@ const disposeBridge = mountBridge(fakeWebServer);
 const home = mkdtempSync(join(tmpdir(), 'p3-bridge-'));
 process.env.DSH_HOME = home;
 process.env.XDG_CONFIG_HOME = join(home, 'xdg'); // bridge reads token file from here (authority)
+process.env.DSH_PROFILE = ''; // pin legacy scope (agent shells may export it)
 const setup = runSetup({ wsUrl: `ws://127.0.0.1:${port}/api/plugins/tool-browser/ws`, home });
 check('setup wrote token + manifest', setup.reusedToken === false && setup.manifestPath.length > 0);
 

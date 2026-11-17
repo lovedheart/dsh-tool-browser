@@ -184,19 +184,22 @@ export const extensionBridgePlugin = {
   name: 'tool-browser-extension-bridge',
   inject: ['webServer'],
   apply(ctx: any, config: BrowserToolConfig): void {
-    void mountExtensionBridge(ctx, config.closeOrphanTabs);
+    void mountExtensionBridge(ctx, config);
   },
 };
 
-async function mountExtensionBridge(ctx: any, closeOrphanTabs = false): Promise<void> {
+async function mountExtensionBridge(ctx: any, config: BrowserToolConfig): Promise<void> {
   const [bridgeMod, setupMod, resilienceMod] = await Promise.all([
     import('./backend/ext/bridge.ts'),
     import('./backend/ext/setup.ts'),
     import('./backend/ext/resilience.ts'),
   ]);
-  resilienceMod.configureResilience({ closeOrphanTabs });
+  // Declared profile first: every bridge artifact lookup (token file, launcher,
+  // manifest) resolves inside this instance's scope from here on.
+  setupMod.setProfileName(config.profile);
+  resilienceMod.configureResilience({ closeOrphanTabs: config.closeOrphanTabs });
   const { mountBridge, BRIDGE_UPGRADE_PATH } = bridgeMod;
-  const { installStatus, runSetup } = setupMod;
+  const { installStatus, runSetup, profileName } = setupMod;
   const disposers: Array<() => void> = [mountBridge(ctx.webServer)];
   const base = '/api/plugins/tool-browser';
   disposers.push(
@@ -205,7 +208,11 @@ async function mountExtensionBridge(ctx: any, closeOrphanTabs = false): Promise<
       path: `${base}/chrome/status`,
       handler: (_req: any, res: any) => {
         try {
-          const status = { ...installStatus(), bridge: bridgeMod.nmBridge.status() };
+          const status = {
+            ...installStatus(),
+            scope: { profile: profileName(), port: ctx.webServer.port },
+            bridge: bridgeMod.nmBridge.status(),
+          };
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(JSON.stringify(status));
         } catch (e) {

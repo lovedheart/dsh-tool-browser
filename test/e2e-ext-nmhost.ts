@@ -42,9 +42,13 @@ function parseFrames(buf: Buffer): { frames: Buffer[]; rest: Buffer } {
   return { frames, rest: buf.subarray(i) };
 }
 
+// An agent shell may export DSH_PROFILE; these suites pin the legacy
+// single-bridge layout unless a case opts in via `profile`.
+process.env.DSH_PROFILE = '';
+
 async function withHost(home: string, extra: string[] = []) {
   const child = spawn(process.execPath, ['--import', 'tsx', HOST_TS, ...extra], {
-    env: { ...process.env, DSH_HOME: home },
+    env: { ...process.env, DSH_HOME: home, DSH_PROFILE: '' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let out: Uint8Array = new Uint8Array(0);
@@ -168,6 +172,25 @@ function startServer(opts: { expectToken: string }) {
   // We only verify it does NOT exit 0 quickly (it treats it as transient, keeps budget).
   await new Promise((r) => setTimeout(r, 500));
   check('still retrying (no premature exit)', h.child.exitCode === null);
+  h.child.kill('SIGKILL');
+  wss.close();
+}
+
+// ---- profile scope: --profile reads the profile config, not the legacy one ----
+{
+  const home = mkdtempSync(join(tmpdir(), 'p2-scope-'));
+  // Legacy file points at a dead port on purpose; the scoped file at the live one.
+  writeFileSync(join(home, 'nm-bridge.json'), JSON.stringify({ ws_url: 'ws://127.0.0.1:1/ws', token: 'tok-abc' }), { mode: 0o600 });
+  mkdirSync(join(home, 'profiles', 'gamma'), { recursive: true });
+  writeFileSync(join(home, 'profiles', 'gamma', 'nm-bridge.json'), JSON.stringify({ ws_url: `ws://127.0.0.1:${PORT}/ws`, token: 'tok-abc' }), { mode: 0o600 });
+  const { wss, events } = startServer({ expectToken: 'tok-abc' });
+  await new Promise((r) => wss.once('listening', r));
+
+  const h = await withHost(home, ['--profile', 'gamma']);
+  const t0 = Date.now();
+  while (!events.some((e) => e.type === 'hello') && Date.now() - t0 < 5000) await new Promise((r) => setTimeout(r, 20));
+  check('--profile reads profiles/<p>/nm-bridge.json', events.some((e) => e.type === 'hello'), 'hello arrived');
+  check('no fallback to the legacy config', !h.errBuf.join('').includes('127.0.0.1:1'), h.errBuf.join('').slice(0, 200));
   h.child.kill('SIGKILL');
   wss.close();
 }

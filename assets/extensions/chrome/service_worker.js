@@ -1,4 +1,3 @@
-const NATIVE_HOST = "com.dsh.browser";
 const JSONRPC_VERSION = "2.0";
 const WATCHDOG_ALARM = "dsh-native-watchdog";
 const WATCHDOG_PERIOD_MINUTES = 0.5;
@@ -54,6 +53,9 @@ if (typeof importScripts === "function") {
 
 const bridgeConfig = globalThis.DSH_BRIDGE_CONFIG || {};
 const extensionBuild = bridgeConfig.build || {};
+// Per-profile Native Messaging host, e.g. "com.dsh.browser-academic". Falls
+// back to the unscoped name when bridge_config.js is absent (dev builds).
+const NATIVE_HOST = String(bridgeConfig.nativeHost || "com.dsh.browser");
 const LOCAL_DSH_PORTS = new Set([
   String(Number(bridgeConfig.localPort) || 8088),
 ]);

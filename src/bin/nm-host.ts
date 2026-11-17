@@ -4,7 +4,9 @@
  *
  * Chrome starts this process via the NM launcher whenever the extension calls
  * `chrome.runtime.connectNative()`. It then:
- *   1. reads `$DSH_HOME/nm-bridge.json` (ws_url + bearer token),
+ *   1. reads its profile's bridge config (`--profile <p>` →
+ *      `$DSH_HOME/profiles/<p>/nm-bridge.json`, else `$DSH_HOME/nm-bridge.json`;
+ *      ws_url + bearer token),
  *   2. opens the bridge WebSocket (Bearer auth) and runs the hello/hello_ack
  *      handshake (protocol v2),
  *   3. pumps frames both ways: stdio length-prefixed NM frames <-> WS JSON
@@ -25,8 +27,6 @@
  */
 
 import { readFileSync, writeSync, readSync, read } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import {
   contractSnapshot,
@@ -38,14 +38,19 @@ import {
   NM_CLOSE_INBOUND_TOO_LARGE,
   ENTRY_ID,
 } from '../protocol.ts';
+import { dshHome, nmBridgeConfigPath, profileName } from '../backend/ext/setup.ts';
 
 const args = process.argv.slice(2);
 const PROBE = args.includes('--probe');
 const CHECK_RUNTIME = args.includes('--check-runtime');
+/** Profile scope baked in by the profile-scoped launcher. */
+const PROFILE_FLAG = argValue('--profile');
 
-function dshHome(): string {
-  return process.env.DSH_HOME ?? join(homedir(), '.dsh');
+function argValue(flag: string): string | undefined {
+  const i = args.indexOf(flag);
+  return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined;
 }
+
 
 class HandshakePermanentError extends Error {}
 
@@ -102,7 +107,7 @@ function readOneFrameSync(): Buffer | null {
 // -- config --------------------------------------------------------------------
 
 function loadConfig(): { wsUrl: string; token: string } {
-  const cfgPath = join(dshHome(), 'nm-bridge.json');
+  const cfgPath = nmBridgeConfigPath(dshHome(), PROFILE_FLAG ?? profileName());
   const raw = JSON.parse(readFileSync(cfgPath, 'utf8'));
   const wsUrl = String(raw.ws_url ?? '').trim();
   const token = String(raw.token ?? '').trim();

@@ -4,7 +4,9 @@
  *
  * Chrome starts this process via the NM launcher whenever the extension calls
  * `chrome.runtime.connectNative()`. It then:
- *   1. reads `$DSH_HOME/nm-bridge.json` (ws_url + bearer token),
+ *   1. reads its profile's bridge config (`--profile <p>` →
+ *      `$DSH_HOME/profiles/<p>/nm-bridge.json`, else `$DSH_HOME/nm-bridge.json`;
+ *      ws_url + bearer token),
  *   2. opens the bridge WebSocket (Bearer auth) and runs the hello/hello_ack
  *      handshake (protocol v2),
  *   3. pumps frames both ways: stdio length-prefixed NM frames <-> WS JSON

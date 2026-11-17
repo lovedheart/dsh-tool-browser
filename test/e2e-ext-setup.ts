@@ -15,6 +15,7 @@ function check(name: string, cond: boolean, extra = '') {
 
 const home = mkdtempSync(join(tmpdir(), 'dsh-tb-p1-'));
 // Isolate the NM manifest (always written to the real user config dir) too.
+process.env.DSH_PROFILE = ''; // pin legacy scope (agent shells may export it)
 process.env.XDG_CONFIG_HOME = join(home, 'xdg');
 const wsUrl = 'ws://127.0.0.1:3080/api/plugins/tool-browser/ws';
 
@@ -60,5 +61,45 @@ try {
 }
 check('non-loopback ws url rejected', rejected);
 
+// profile scoping: each profile owns its token / launcher / manifest / host name
+const pa = runSetup({ wsUrl: 'ws://127.0.0.1:3083/api/plugins/tool-browser/ws', home, profile: 'alpha' });
+const pb = runSetup({ wsUrl: 'ws://127.0.0.1:3084/api/plugins/tool-browser/ws', home, profile: 'beta' });
+check('profile launcher is profile-scoped', pa.launcher.includes('profiles/alpha/bin/dsh-nm-host'), pa.launcher);
+check('profile config is profile-scoped', pa.configPath === join(home, 'profiles/alpha/nm-bridge.json'), pa.configPath);
+check('profiles get distinct host names', pa.nativeHost === 'com.dsh.browser.alpha' && pb.nativeHost === 'com.dsh.browser.beta', `${pa.nativeHost} / ${pb.nativeHost}`);
+check('profile manifests are distinct files', pa.manifestPath !== pb.manifestPath && existsSync(pa.manifestPath) && existsSync(pb.manifestPath));
+const mfA = JSON.parse(readFileSync(pa.manifestPath, 'utf8'));
+check('profile manifest name + launcher', mfA.name === 'com.dsh.browser.alpha' && mfA.path === pa.launcher, mfA.name);
+check('profile launcher pins --profile', readFileSync(pa.launcher, 'utf8').includes('--profile "alpha"'), readFileSync(pa.launcher, 'utf8').trim());
+check('profile tokens are independent', readBridgeToken(home, 'alpha') !== readBridgeToken(home, 'beta'));
+check('one profile setup leaves the legacy file alone', JSON.parse(readFileSync(join(home, 'nm-bridge.json'), 'utf8')).ws_url === wsUrl);
+// The extension copy is shared, so bridge_config.js tracks the LAST setup —
+// this is what makes "re-run setup, then reconnect the popup" switch profiles.
+const bcShared = readFileSync(join(pa.extensionDir, 'bridge_config.js'), 'utf8');
+check('last setup wins in the shared bridge_config', bcShared.includes('"localPort":3084') && bcShared.includes('"nativeHost":"com.dsh.browser.beta"'), bcShared.trim());
+runSetup({ wsUrl: 'ws://127.0.0.1:3083/api/plugins/tool-browser/ws', home, profile: 'alpha' });
+const bcA = readFileSync(join(pa.extensionDir, 'bridge_config.js'), 'utf8');
+check('re-running setup hands the extension back to alpha', bcA.includes('"localPort":3083') && bcA.includes('"nativeHost":"com.dsh.browser.alpha"') && bcA.includes('"profile":"alpha"'), bcA.trim());
+
+const stA = installStatus(home, 'alpha');
+check('installStatus reports scope', stA.profile === 'alpha' && stA.nativeHost === 'com.dsh.browser.alpha' && stA.installed === true, JSON.stringify(stA).slice(0, 140));
+check('unscoped status ignores profile dirs', installStatus(home).profile === undefined);
+let badProfile = false;
+try {
+  runSetup({ wsUrl, home, profile: '../escape' });
+} catch {
+  badProfile = true;
+}
+check('path-traversal profile name rejected', badProfile);
+
+// Chrome's NM host-name grammar is dot-separated word chars only — a hyphen in
+// the name makes connectNative fail with "Invalid native messaging host name
+// specified." and the host is never spawned. Profile names may contain
+// hyphens, so the derived host name must not.
+const pd = runSetup({ wsUrl: 'ws://127.0.0.1:3085/api/plugins/tool-browser/ws', home, profile: 'my-web-2' });
+check('hyphenated profile yields a Chrome-legal host name', pd.nativeHost === 'com.dsh.browser.my_web_2', pd.nativeHost);
+check('hyphenated profile manifest name is host-safe', /^com\.dsh\.browser(\.[A-Za-z0-9_]+)*$/.test(pd.nativeHost) && JSON.parse(readFileSync(pd.manifestPath, 'utf8')).name === pd.nativeHost, pd.nativeHost);
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);
+

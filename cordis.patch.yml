@@ -27,6 +27,12 @@
 #   execTimeoutMs      - cooperative per-call budget (default 120000)
 #   idleTtlMs          - reclaim an idle kernel after this long (default 600000)
 #   maxOutputChars     - cap on rendered tool output before overflow spill
+#   profile            - chrome-extension backend: namespaces the bridge
+#                        (token/launcher/NM manifest under ~/.dsh/profiles/<p>/,
+#                        host name com.dsh.browser.<p>) so several dsh profiles
+#                        on different ports never overwrite each other. Falls
+#                        back to $DSH_PROFILE, then to the legacy single-bridge
+#                        layout (~/.dsh/nm-bridge.json + com.dsh.browser).
 - insert:
     - id: tool-browser
       name: 'dsh-tool-browser'

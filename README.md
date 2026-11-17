@@ -97,16 +97,43 @@ One-time setup on the user's machine:
 
 1. `curl -X POST http://127.0.0.1:<dsh-port>/api/plugins/tool-browser/chrome/setup`
    (or call `runSetup()`); writes the NM host manifest, the
-   `~/.dsh/bin/dsh-nm-host` launcher, the bridge token, and copies the
-   extension to `~/.dsh/chrome-extension/dsh-chrome`.
+   `~/.dsh/profiles/<profile>/bin/dsh-nm-host` launcher, the bridge token, and
+   copies the extension to `~/.dsh/chrome-extension/dsh-chrome`.
 2. In `chrome://extensions` → Developer mode → **Load unpacked** →
    `~/.dsh/chrome-extension/dsh-chrome`. The extension connects automatically
    whenever Chrome runs (no server restart needed; it reconnects with backoff).
 3. Status: `GET /api/plugins/tool-browser/chrome/status` (install state +
-   bridge connection + last hello info).
+   bridge connection + last hello info + the active `{profile, port}` scope).
 
-Transport: WS upgrade at `/api/plugins/tool-browser/ws` (Bearer token from
-`~/.dsh/nm-bridge.json`, loopback only) ⇄ native host (dumb pipe, 4-byte LE
+### Running several profiles side by side
+
+Each `dsh` profile boots on its own port, so each needs its own bridge target
+and secret. Set the `profile` config key (typically in the profile's own
+`cordis.patch.yml`, e.g. `profile: coding`) and everything gets namespaced:
+
+| artifact | with `profile: coding` | unset fallback |
+|---|---|---|
+| bridge config | `~/.dsh/profiles/coding/nm-bridge.json` | `~/.dsh/nm-bridge.json` |
+| nm-host launcher | `~/.dsh/profiles/coding/bin/dsh-nm-host` | `~/.dsh/bin/dsh-nm-host` |
+| NM manifest | `…/NativeMessagingHosts/com.dsh.browser.coding.json` | `com.dsh.browser.json` |
+| NM host name | `com.dsh.browser.coding` | `com.dsh.browser` |
+
+`$DSH_PROFILE` is used when `profile` is unset. Without either, the legacy
+single-bridge layout above applies.
+
+Profiles stay independent because each launcher is registered under its own
+host name and carries its own `--profile <name>` flag, so the native host
+reads its own config file instead of a shared one the last setup overwrote.
+The unpacked extension is shared (its id comes from the manifest `key`, not
+the profile) and picks its host from `bridge_config.js`, so only one profile
+owns the user's Chrome at a time: re-run that profile's setup endpoint, then
+reconnect from the extension popup. To drive two browsers at once, load a
+second copy of the extension (a distinct `manifest.json` `key` → distinct
+extension id) into a second Chrome profile.
+
+Transport: WS upgrade at `/api/plugins/tool-browser/ws` (Bearer token from the
+active profile's `nm-bridge.json` — see the table above —, loopback only) ⇄
+native host (dumb pipe, 4-byte LE
 framing) ⇄ extension. Protocol v2: JSON-RPC 2.0 + hello/hello_ack contract
 check. Reconnect resilience: on (re)connect the core reconciles page→tab maps
 (surviving tabs stay usable, lost pages raise a governed "reopen" error),

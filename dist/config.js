@@ -96,4 +96,15 @@ export const Config = z.object({
      * orphans are only flagged (safer for the user's browsing).
      */
     closeOrphanTabs: z.boolean().default(false),
+    /**
+     * Profile scope for the extension bridge: names this instance's bridge so
+     * several `dsh` profiles (each on its own port) coexist instead of the last
+     * setup overwriting `~/.dsh/nm-bridge.json`. Artifacts then live under
+     * `~/.dsh/profiles/<profile>/` and the Native Messaging host registers as
+     * `com.dsh.browser.<profile>` (Chrome host names forbid hyphens, so the
+     * separator is a dot and hyphens in the profile name become underscores).
+     * Unset falls back to `$DSH_PROFILE`, then to
+     * the legacy single-bridge layout.
+     */
+    profile: optionalString,
 });
